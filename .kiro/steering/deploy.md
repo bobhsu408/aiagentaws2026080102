@@ -11,8 +11,8 @@ inclusion: auto
 - Task 4 的核心內容（Agent 主程式 + System Prompt）已隨 Task 3 一併完成，缺獨立報告。
 - **Task 5 已完成**（MCP Client 整合 Exa AI，`docs/reports/TASK_5_REPORT.md`）。套件位於
   `app/careernav/exa_mcp/`（刻意不叫 `mcp/`，會與 PyPI 的 `mcp` 套件撞名，詳見報告）。
-- AgentCore Runtime 已提前部署並成功 invoke，但那是**舊骨架版本**，尚未包含 Task 3～5 的新程式碼；這只是檢查點，不代表 Task 6 完成。
-- 新 session 下一步建議進 **Task 6（CDK 基礎設施完善 + AgentCore 部署）**，把 Task 3～5 的程式碼重新打包部署；或先補一份 Task 4 報告。每完成一個 Task 要建立報告並 commit。
+- **Task 6 已完成**（`docs/reports/TASK_6_REPORT.md`）：Runtime 已重新部署，**線上程式碼已是 Task 3～5 最新版**，用 `agentcore invoke` 實測六步驟工具與 Exa MCP 搜尋皆正常，CloudWatch 無錯誤。`infra/`（Lambda+S3）仍未部署。
+- 新 session 下一步建議進 **Task 7（Lambda Proxy + 前端接入）**；或先補一份 Task 4 報告。每完成一個 Task 要建立報告並 commit。
 - 詳細現況與待辦：`docs/HANDOFF.md`（每次 Task 完成後應同步更新此檔案）。
 
 ## AWS Runtime

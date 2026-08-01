@@ -21,10 +21,17 @@
 | Task 3：實作六步驟 Career Tools | **已完成**，報告：`docs/reports/TASK_3_REPORT.md`，commit：`81886fb` |
 | Task 4：Agent 主程式與 System Prompt | **副產品已完成**，見下方「Task 3 順帶完成的部分」，尚無獨立報告 |
 | Task 5：MCP Client 整合（Exa AI） | **已完成**，報告：`docs/reports/TASK_5_REPORT.md` |
-| **下一個建議 Task** | **Task 6：CDK 基礎設施完善 + AgentCore 部署**（重新打包含 Task 3～5 程式碼），或先補一份 Task 4 確認報告 |
-| Task 7～Task 9 | 尚未依正式計畫完成 |
+| Task 6：CDK 基礎設施完善 + AgentCore 部署 | **已完成**（AgentCore Runtime 部分），報告：`docs/reports/TASK_6_REPORT.md`。`infra/`（Lambda+S3）仍未部署，見下方提醒 |
+| **下一個建議 Task** | **Task 7：Lambda Proxy + 前端接入**，或先補一份 Task 4 確認報告 |
+| Task 8～Task 9 | 尚未依正式計畫完成 |
 
-不得因 Runtime 已上線而跳過已完成的 Task。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成，且**目前的程式碼變更尚未重新部署**（見第五節）。
+Runtime 已於 Task 6 重新部署，**線上程式碼已是 Task 3～5 的最新版本**（不再是舊骨架），已用 `agentcore invoke` 實測六步驟工具與 Exa MCP 搜尋皆正常運作，CloudWatch 無錯誤。
+
+### Task 6 重點提醒（避免下個 session 重踩坑）
+
+- 上次部署失敗是因為在 workspace（`noexec` 磁碟）執行部署指令；一律在 `~/careernav` 執行 `agentcore deploy`，先用 `docs/DEPLOY_NOTES.md` 的安全同步指令同步程式碼。
+- 本次部署只更新了 AgentCore Runtime（`agentcore/cdk/`）。`infra/lib/stack.ts`（Lambda proxy + S3 前端）**仍未部署**，屬 Task 7 範圍。
+- 部署後務必用 `agentcore invoke` 實際測試 + 查 CloudWatch 確認無 ImportError，不要只看 `agentcore status` 顯示 READY 就當作完成（READY 只代表容器啟動成功，不保證程式邏輯正確載入）。
 
 ### Task 5 重點提醒（避免下個 session 重踩坑）
 
