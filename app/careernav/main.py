@@ -17,10 +17,15 @@ from strands import Agent
 from strands.agent.conversation_manager.null_conversation_manager import NullConversationManager
 from strands.models.bedrock import BedrockModel
 
+from exa_mcp.client import get_exa_mcp_client
 from tools.career_tools import TOOL_REGISTRY
 
 app = BedrockAgentCoreApp()
 log = app.logger
+
+# Exa MCP client 為單一長駐連線，讓所有 session 共用（continue_on_error=True，
+# 連不上時 Strands 會讓它提供空工具清單，不影響其餘六個 Career Tools）。
+_exa_mcp_client = get_exa_mcp_client()
 
 # ========================================
 # System Prompt
@@ -38,6 +43,15 @@ SYSTEM_PROMPT = """你是「職涯導航家」，一個專門協助台灣失業�
    與 hint（即時搜尋關鍵字）；若有即時搜尋能力，可據 keywords 補充當期開課資訊。
 5. get_checklist — 彙整應備文件，區分通用與各方案專用。
 6. send_notification — 使用者要求時，模擬寄送行動計畫摘要（展示模式）。
+
+## 即時搜尋工具（web_search_exa / web_fetch_exa）
+- 用途限於補充「會隨時間變動」的動態資訊：目前開課梯次與報名截止、最新職缺趨勢、
+  特定計畫的官網最新公告。不要用它來查詢補助金額、資格條件或法規——那些一律
+  以 calculate_benefit / match_resources 回傳的結構化資料與 law_references 為準。
+- 若搜尋逾時、無結果或工具暫時無法使用，直接跳過即時搜尋、以 curated 課程與現有
+  資料回覆即可，並可告知使用者「即時查詢暫時無法使用，以下為目前已知資訊」，
+  不要讓使用者等待或反覆重試。
+- 搜尋結果僅供參考佐證，引用時說明來源是網路搜尋，不要當成與法規同等的權威依據。
 
 ## 回覆規範
 - 一律使用繁體中文，語氣溫暖、具同理心，面對的是失業或轉職中的人。
@@ -72,7 +86,7 @@ def agent_factory():
                 model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
             ),
             system_prompt=SYSTEM_PROMPT,
-            tools=TOOL_REGISTRY,
+            tools=[*TOOL_REGISTRY, _exa_mcp_client],
             conversation_manager=NullConversationManager(),
         )
         return cache[session_id]

@@ -20,10 +20,25 @@
 | Task 2：實作 `resources.json` 與 `constants.json` | 已完成（MVP 範圍，見下方說明），報告：`docs/reports/TASK_2_REPORT.md` |
 | Task 3：實作六步驟 Career Tools | **已完成**，報告：`docs/reports/TASK_3_REPORT.md`，commit：`81886fb` |
 | Task 4：Agent 主程式與 System Prompt | **副產品已完成**，見下方「Task 3 順帶完成的部分」，尚無獨立報告 |
-| **下一個建議 Task** | **Task 5：MCP Client 整合（Exa AI）**，或先補一份 Task 4 確認報告後再進 Task 5 |
-| Task 6～Task 9 | 尚未依正式計畫完成 |
+| Task 5：MCP Client 整合（Exa AI） | **已完成**，報告：`docs/reports/TASK_5_REPORT.md` |
+| **下一個建議 Task** | **Task 6：CDK 基礎設施完善 + AgentCore 部署**（重新打包含 Task 3～5 程式碼），或先補一份 Task 4 確認報告 |
+| Task 7～Task 9 | 尚未依正式計畫完成 |
 
-不得因 Runtime 已上線而跳過 Task 5。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成，且**目前的程式碼變更尚未重新部署**（見第五節）。
+不得因 Runtime 已上線而跳過已完成的 Task。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成，且**目前的程式碼變更尚未重新部署**（見第五節）。
+
+### Task 5 重點提醒（避免下個 session 重踩坑）
+
+- MCP Client 套件位於 `app/careernav/exa_mcp/`，**刻意不叫 `mcp/`**：
+  `main.py` 會把 `app/careernav/` insert 進 `sys.path` 最前面，若資料夾叫
+  `mcp` 會蓋掉 PyPI 上 strands 依賴的 `mcp`（Model Context Protocol SDK）
+  本身，導致 `ModuleNotFoundError: No module named 'mcp.client'`（已實測
+  重現）。詳見 `docs/reports/TASK_5_REPORT.md` 第四節。
+- 只開放 Exa 預設兩個工具：`web_search_exa`、`web_fetch_exa`。用
+  `MCPClient(continue_on_error=True)` 做 graceful degradation，連不上時
+  Agent 仍能用其餘六個 Career Tools 正常運作。
+- `EXA_API_KEY` 留空即可運作（keyless，有速率限制）；若要提高額度，
+  Exa 官方目前唯一支援的傳遞方式是 URL query string，沒有 header 替代
+  方案，這是已知風險，不是本專案程式碼可規避的。
 
 ### Task 3 順帶完成的部分（重要，避免重做 Task 4）
 

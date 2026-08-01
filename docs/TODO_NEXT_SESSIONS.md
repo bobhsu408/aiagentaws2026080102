@@ -174,7 +174,7 @@
 |------|------|
 | **預估工時** | 1 小時 |
 | **前置依賴** | 無 |
-| **描述** | `mcp_client/client.py` 加 connection timeout、搜尋失敗時 graceful degradation |
+| **描述** | ~~`mcp_client/client.py` 加 connection timeout、搜尋失敗時 graceful degradation~~ — 已於 Task 5 完成（`app/careernav/exa_mcp/client.py`），見 `docs/reports/TASK_5_REPORT.md` |
 
 ---
 
