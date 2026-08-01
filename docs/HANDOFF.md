@@ -62,10 +62,10 @@ AgentCore CLI
 
 ### 兩套 Agent 程式碼的現況
 
-- `agent/`：正式實作計畫原先指定的開發目錄，Task 2、Task 3 目前仍以此為產出位置。
-- `app/careernav/`：AgentCore CLI 實際打包部署的 CodeZip 目錄，目前只有可運作的骨架 Runtime。
+- `agent/`：正式實作計畫原先指定的開發目錄。Task 2 的 `resources.json`／`constants.json` 已在此建立；Task 3 目前仍以此為產出位置。
+- `app/careernav/`：AgentCore CLI 實際打包部署的 CodeZip 目錄，目前只有可運作的骨架 Runtime，**尚未包含 Task 2 的資料**。
 
-後續 Task 2～4 必須同步處理這個落差：不要只修改 `agent/` 後就直接部署，否則 Runtime 不會包含新資料與工具。建議在 Task 4 統一成單一來源，或建立明確的打包同步步驟，並在該 Task 報告記錄決策。
+後續 Task 3～4 必須同步處理這個落差：不要只修改 `agent/` 後就直接部署，否則 Runtime 不會包含新資料與工具。建議在 Task 4 統一成單一來源，或建立明確的打包同步步驟，並在該 Task 報告記錄決策。
 
 ## 四、部署路徑限制
 
@@ -140,13 +140,14 @@ from strands import Agent, tool
 
 ## 六、尚未完成與已知風險
 
-1. **Task 2 資料尚未建立**：目前六個 Career Tools 仍是 skeleton，不能當成正式補助判斷。
+1. **Career Tools 仍是 skeleton，尚未讀取 Task 2 資料**：`agent/data/resources.json`／`constants.json` 已存在（情境 A，6 筆），但 `agent/tools/career_tools.py` 的 `match_resources`／`calculate_benefit` 還沒改寫成讀取新 schema，這是 Task 3 的工作，不能跳過。
 2. **Lambda/S3 尚未部署**：自訂 `infra/` stack 尚未完成正式驗收。
 3. **Lambda proxy API 可能不相容**：現有 `lambda/proxy.py` 使用 `bedrock-agent-runtime.invoke_agent`，但目前部署的是 AgentCore Runtime；Task 7 必須改為 AgentCore Runtime invocation API 並實測。
 4. **尚未回填 Lambda 設定**：目前只有 AgentCore Runtime ID，Lambda 還未完成串接。
 5. **Memory 尚未啟用**：`agentcore/agentcore.json` 現在的 `memories` 為空陣列。
 6. **AWS Session Token 有效期有限**：若出現 `ExpiredToken`，更新 workspace 與 `~/careernav` 的 `.env`。
 7. **Credentials 不得 commit**：`.env` 已由 `.gitignore` 排除。
+8. **資料範圍僅涵蓋情境 A**：情境 B（雇主僱用中高齡）、情境 C（高齡者+代理人操作）尚無對應 `resources.json` 資料，Task 8 端到端測試前需決定是否補齊。
 
 ## 七、下一個 session 應執行
 
