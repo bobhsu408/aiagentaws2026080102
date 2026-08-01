@@ -4,6 +4,7 @@
 六步驟 Career Tools 已抽離至 tools/ 套件，資料檔位於 data/。
 """
 
+import json
 import os
 import sys
 from collections import OrderedDict
@@ -113,6 +114,14 @@ def _extract_prompt(payload: dict):
     return payload.get("prompt", "")
 
 
+# 需要把「原始回傳 JSON」額外轉發給前端的工具（目前只有時間軸需要）。
+# Strands 的 SSE 事件流只包含工具「輸入參數」的 delta，不包含工具「執行結果」，
+# 因此在這裡攔截 ToolResultMessageEvent，把指定工具的完整回傳包成自訂事件
+# `careernav_tool_result` 額外 yield 出去，讓 Lambda 能拿到 100% 準確的原始
+# JSON（不需要靠文字轉述或正則表達式從模型回覆裡碎片化拼湊）。
+_FORWARD_TOOL_RESULTS = {"generate_roadmap"}
+
+
 @app.entrypoint
 async def invoke(payload, context):
     """AgentCore Runtime 呼叫入口。"""
@@ -121,13 +130,47 @@ async def invoke(payload, context):
     agent = get_or_create_agent(session_id)
     prompt = _extract_prompt(payload)
 
+    # toolUseId -> 工具名稱，從 contentBlockStart 事件記錄，供之後比對 toolResult。
+    pending_tool_names: dict[str, str] = {}
+
     async for event in agent.stream_async(prompt):
-        if not isinstance(event, dict) or "event" not in event:
+        if not isinstance(event, dict):
             continue
-        cbs = event["event"].get("contentBlockStart")
-        if cbs is not None and not cbs.get("start"):
+
+        # 一般模型串流事件（文字 delta、工具輸入 delta）：照舊轉發給前端。
+        if "event" in event:
+            cbs = event["event"].get("contentBlockStart")
+            if cbs is not None and not cbs.get("start"):
+                continue
+            start = (cbs or {}).get("start") if cbs else None
+            tool_use = (start or {}).get("toolUse") if start else None
+            if tool_use and tool_use.get("toolUseId"):
+                pending_tool_names[tool_use["toolUseId"]] = tool_use.get("name", "")
+            yield event
             continue
-        yield event
+
+        # ToolResultMessageEvent：{"message": {"role": "user", "content": [{"toolResult": {...}}]}}
+        # 攔截其中屬於 _FORWARD_TOOL_RESULTS 的工具，額外轉發原始 JSON。
+        message = event.get("message")
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        for block in message.get("content", []):
+            tool_result = block.get("toolResult")
+            if not isinstance(tool_result, dict):
+                continue
+            tool_use_id = tool_result.get("toolUseId", "")
+            tool_name = pending_tool_names.get(tool_use_id, "")
+            if tool_name not in _FORWARD_TOOL_RESULTS:
+                continue
+            raw_text = "".join(
+                c.get("text", "") for c in tool_result.get("content", []) if isinstance(c, dict)
+            )
+            try:
+                parsed = json.loads(raw_text) if raw_text else None
+            except json.JSONDecodeError:
+                log.warning("無法解析 %s 工具回傳 JSON：%s", tool_name, raw_text[:200])
+                continue
+            yield {"careernav_tool_result": {"name": tool_name, "data": parsed}}
 
 
 if __name__ == "__main__":

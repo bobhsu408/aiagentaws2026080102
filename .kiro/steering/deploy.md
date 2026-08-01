@@ -11,8 +11,8 @@ inclusion: auto
 - Task 4 的核心內容（Agent 主程式 + System Prompt）已隨 Task 3 一併完成，缺獨立報告。
 - **Task 5 已完成**（MCP Client 整合 Exa AI，`docs/reports/TASK_5_REPORT.md`）。套件位於
   `app/careernav/exa_mcp/`（刻意不叫 `mcp/`，會與 PyPI 的 `mcp` 套件撞名，詳見報告）。
-- **Task 6 已完成**（`docs/reports/TASK_6_REPORT.md`）：Runtime 已重新部署，**線上程式碼已是 Task 3～5 最新版**，用 `agentcore invoke` 實測六步驟工具與 Exa MCP 搜尋皆正常，CloudWatch 無錯誤。`infra/`（Lambda+S3）仍未部署。
-- **Task 7（Lambda Proxy + 前端接入）施工計畫已定案**，與使用者確認過視覺風格（黑底白字標楷體、復古按鈕）、狀態機（開場動畫僅一次→首頁→對話→等待→錯誤）、時間軸視覺化規格（橫式、可點擊連結）。完整計畫見 `docs/IMPLEMENTATION_PLAN_20250731.md` Task 7 段落，新 session 直接照其「七、施工順序」執行，**不要重新詢問使用者已定案的視覺/互動細節**。第一步是技術驗證：實測 `generate_roadmap` 觸發時 SSE 事件流能否可靠抓到工具結果。
+- **Task 6 已完成**（`docs/reports/TASK_6_REPORT.md`）：AgentCore Runtime 已重新部署。`infra/`（Lambda+S3）已 `cdk synth` 驗證過範本，**尚未 `cdk deploy`**（留給 Task 7 步驟 8）。
+- **Task 7（Lambda Proxy + 前端接入）進行中**，已完成施工順序步驟 1~5（技術驗證、Lambda 改寫、CDK 更新、前端骨架、前端視覺），步驟 6（逐字打字機）只做了一半（只加了常數 `TYPE_INTERVAL_MS`，還沒接到 `appendMessage()`），步驟 7~10 尚未開始。**詳細進度、已驗證的技術事實、測試環境重建方式，全部記錄在 `docs/HANDOFF.md` 第一之一節，新 session 直接讀那一節接續，不要重新詢問使用者已定案的視覺/互動/時間軸細節，也不要重跑已經驗證過的技術驗證（步驟 1 的結論已確定：SSE 不含 toolResult，改用攔截 `ToolResultMessageEvent` 方案，已部署驗證成功）**。
 - 詳細現況與待辦：`docs/HANDOFF.md`（每次 Task 完成後應同步更新此檔案）。
 
 ## AWS Runtime
@@ -80,8 +80,8 @@ agentcore invoke "你好" --json
 ## 已知整合風險
 
 - `agent/` 已於 Task 3 標記 **DEPRECATED**（見 `agent/DEPRECATED.md`），不得再修改。唯一真實來源是 `app/careernav/`。
-- **Runtime 尚未重新部署 Task 3 的新程式碼**：目前線上跑的還是舊骨架版本。要讓 demo 反映最新六步驟邏輯，需先跑一次本節「部署指令」。
-- `lambda/proxy.py` 目前呼叫傳統 Bedrock Agents API，不是 AgentCore Runtime API；Task 7 必須修正並實測。
 - Strands 的 `tool` 必須由頂層匯入：`from strands import tool`。
+- `lambda/proxy.py` 已於 Task 7 改為呼叫 AgentCore Runtime API（`invoke_agent_runtime`），不再是舊式 Bedrock Agents API。已用真實請求驗證過 SSE 解析邏輯正確，但 Lambda **尚未 `cdk deploy`**，AWS 上還沒有這個 function。
+- `app/careernav/main.py` 的 `invoke()` 已於 Task 7 新增攔截 `generate_roadmap` 工具結果並轉發自訂事件的邏輯（`careernav_tool_result`），已重新部署到正式 Runtime。
 
 完整操作：`docs/DEPLOY_NOTES.md`；最新交接：`docs/HANDOFF.md`。

@@ -1,13 +1,13 @@
 # 職涯導航家（CareerNav）— 專案交接文件
 
-> 最後更新：2026-08-01（Task 3 完成後收尾）
+> 最後更新：2026-08-02（Task 7 施工中，完成步驟 1~5，步驟 6 進行中）
 > 用途：讓新 session 直接依正式計畫接續，不重做、不跳步、不用重讀大量歷史文件
 
 ## 新 session 的第一句指令
 
 請直接使用：
 
-> 請接續當前計畫並執行，嚴格按照 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 順序；每完成一個 Task，建立 `docs/reports/TASK_N_REPORT.md`、驗證結果並 commit。
+> 請接續 Task 7（Lambda Proxy + 前端接入），依 `docs/IMPLEMENTATION_PLAN_20250731.md` 第七節「七、施工順序」逐項執行。目前進度見本檔案第一之一節，直接從「下一步」開始，不需要重新確認已定案的視覺/狀態機/時間軸規格。
 
 ## 一、正式進度與下一步
 
@@ -16,17 +16,61 @@
 | 項目 | 狀態 |
 |------|------|
 | Task 1：專案基礎設施設置 | 已完成，報告：`docs/reports/TASK_1_REPORT.md`，commit：`891e21a` |
-| AgentCore Runtime 部署檢查點 | 已提前完成並通過 invoke；這不代表 Task 6 全部完成 |
 | Task 2：實作 `resources.json` 與 `constants.json` | 已完成（MVP 範圍，見下方說明），報告：`docs/reports/TASK_2_REPORT.md` |
 | Task 3：實作六步驟 Career Tools | **已完成**，報告：`docs/reports/TASK_3_REPORT.md`，commit：`81886fb` |
 | Task 4：Agent 主程式與 System Prompt | **副產品已完成**，見下方「Task 3 順帶完成的部分」，尚無獨立報告 |
 | Task 5：MCP Client 整合（Exa AI） | **已完成**，報告：`docs/reports/TASK_5_REPORT.md` |
-| Task 6：CDK 基礎設施完善 + AgentCore 部署 | **已完成**（AgentCore Runtime 部分），報告：`docs/reports/TASK_6_REPORT.md`。`infra/`（Lambda+S3）仍未部署，見下方提醒 |
-| Task 7：Lambda Proxy + 前端接入 | **施工計畫已定案**（與使用者確認視覺風格/狀態機/時間軸規格），尚未開始寫程式碼。完整計畫見 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 7 段落，**直接照該節「七、施工順序」逐項執行，不需重新討論已定案項目** |
-| **下一個建議 Task** | **接續 Task 7**，從施工順序第 1 步「技術驗證（SSE 事件流是否能抓到 generate_roadmap 工具結果）」開始 |
+| Task 6：CDK 基礎設施完善 + AgentCore 部署 | **已完成**（AgentCore Runtime 部分），報告：`docs/reports/TASK_6_REPORT.md`。`infra/`（Lambda+S3）**尚未 `cdk deploy`**（已 `cdk synth` 驗證過範本，留給 Task 7 步驟 8 一併部署） |
+| Task 7：Lambda Proxy + 前端接入 | **進行中**，見下方「一之一、Task 7 詳細進度」 |
 | Task 8～Task 9 | 尚未依正式計畫完成 |
 
-Runtime 已於 Task 6 重新部署，**線上程式碼已是 Task 3～5 的最新版本**（不再是舊骨架），已用 `agentcore invoke` 實測六步驟工具與 Exa MCP 搜尋皆正常運作，CloudWatch 無錯誤。
+Runtime 已於 Task 7 步驟 1 重新部署，**線上程式碼含 Task 7 對 `main.py` 的新改動**（攔截 `generate_roadmap` 工具結果並額外轉發），已用 boto3 直接呼叫 + `agentcore invoke` 實測正常。
+
+## 一之一、Task 7 詳細進度（施工順序十步驟，2026-08-02 暫停點）
+
+**已完成（步驟 1~5）：**
+
+1. **技術驗證**✅ — 用 boto3 直接呼叫正式 Runtime 的 `invoke_agent_runtime`，抓原始 SSE 事件流分析（存於 `/tmp/raw_sse_output.txt`，該機器 `/tmp` 為暫存，新機器/新 session 不會存在，需要重跑才能複現）。**結論**：AgentCore SSE 串流原生只轉發工具「輸入參數」delta，完全不含工具「執行結果」（在 123KB 原始輸出中搜尋 `timeline`/`decision_points` 是 0 筆）。改用「main.py entrypoint 攔截 `ToolResultMessageEvent`」方案（不是計畫原先設想的文字內嵌 JSON 標記備案，效果更好更穩定）：在 `app/careernav/main.py` 的 `invoke()` 裡記錄 `contentBlockStart` 事件的 `toolUseId -> name` 對照表，遇到 event 帶 `message.role == "user"` 且 content 有 `toolResult` 時，比對 `toolUseId` 找出 `tool_name`，若屬於 `generate_roadmap` 就把 `toolResult.content[].text` 解析成 JSON，包成自訂事件 `{"careernav_tool_result": {"name": ..., "data": {...}}}` 額外 yield 出去。**已在正式 Runtime 重新部署並實測確認可用**（`careernav_tool_result` 事件在真實 SSE 流中出現，內容與 `tools/logic.py` 的 `generate_roadmap` 回傳完全吻合）。
+
+2. **Lambda 改寫**✅ — `lambda/proxy.py` 已全面改寫，用 `boto3.client("bedrock-agentcore").invoke_agent_runtime()`，解析上述 SSE 格式組出 `{"reply": ..., "session_id": ..., "roadmap": ... 或 null}`。加了 read timeout（75 秒，低於 Lambda 90 秒總 timeout）、`_normalize_session_id()` 補齊過短的 session_id（AgentCore `runtimeSessionId` 最短 33 字元限制）、三種錯誤處理（`BotoCoreError`/`ClientError`、非預期例外、空回應）。**已用真實請求做 end-to-end 測試**（不是 mock），含觸發 `generate_roadmap` 的案例，`roadmap` 欄位正確帶出 `timeline`/`decision_points`/`courses`/`total_months`。
+
+3. **CDK 更新**✅ — `infra/lib/stack.ts`：`agentRole` 新增 `bedrock-agentcore:InvokeAgentRuntime` policy；Lambda 環境變數從 `AGENT_ID`/`AGENT_ALIAS_ID` 改為 `AGENT_RUNTIME_ARN`（硬編碼實際值，因為 AgentCore Runtime 由獨立 `agentcore` CLI 管理，不屬於此 CDK stack 的資源，不能用 cross-stack 參照）。已在 `~/careernav/infra` 跑 `npm install` + `npx cdk synth` 成功產出完整 CloudFormation template。**尚未 `cdk deploy`**（刻意留給步驟 8 統一處理，因為要等前端也做完才一次部署驗證整條鏈路，避免重複部署）。
+
+4. **前端骨架**✅ — `frontend/index.html` 從 Task 1 的極簡骨架改寫成完整狀態機（`home` → `chat` → `waiting`/`error`，對應計畫第五節狀態機圖）。`API_ENDPOINT` 目前是 placeholder 字串 `"PLACEHOLDER_LAMBDA_FUNCTION_URL"`，**要等步驟 8 `cdk deploy` 拿到真正 Function URL 後才能填入**做真實瀏覽器測試。
+
+5. **前端視覺**✅ — 疊上復古視覺樣式：黑底白字、`font-family: "標楷體","DFKai-SB","BiauKai",serif`、雙層像素邊框按鈕（`::after` 偽元素做內縮邊框，`:active` 位移 2px 模擬按壓感）、開場逐項淡入動畫（`enterHomeScreen()` 用 `sessionStorage` key `cn_booted` 判斷只播一次，`resetConversation()` 明確移除 `play-intro` class 避免重播）、等待跑馬燈（3 個 `.marquee-dot` 依序 delay 循環閃爍）。**未破壞 Task 4 的狀態機邏輯**（所有 function/id 簽名不變）。
+
+**進行中（步驟 6，尚未完成）：**
+
+6. **逐字顯示（文字打字機效果）**⚠️ **只做了一半**：目前只在 `frontend/index.html` 加了設定常數 `const TYPE_INTERVAL_MS = 25;`（每字 25ms，符合規格 20~30ms），**但還沒有把它接到 `appendMessage()`**——`appendMessage("agent", text)` 目前仍是直接 `bubble.textContent = text` 一次性賦值，不是逐字插入。**新 session 接續時**：
+   - 需要寫一個逐字插入的函式（例如 `typeText(bubble, text, intervalMs)`，用 `setInterval` 或遞迴 `setTimeout` 逐字附加），只用在 Agent 回覆（`role === "agent"`），使用者自己送出的訊息維持立即顯示。
+   - **注意計畫規則**：「若這輪有 roadmap 資料，文字顯示完後接著淡入時間軸卡片」——所以 `sendMessage()` 裡呼叫 `appendMessage("agent", ...)` 後，`appendRoadmapPlaceholder(data.roadmap)` 必須等文字打字動畫完全跑完才觸發，不能同時出現。目前的同步呼叫寫法需要改成等待打字機 Promise/callback 完成後才呼叫。
+   - 改完後要重跑 `/tmp/frontend_test/run_test.js`（jsdom 行為測試，見下方「測試環境備忘」）確認沒有破壞既有 21 項斷言，並視情況新增打字機相關的斷言（例如用 `jest.useFakeTimers` 風格手動 fast-forward，或直接測試 `typeText` 函式本身的行為）。
+
+**尚未開始（步驟 7~10）：**
+
+7. 時間軸元件：橫式時間軸渲染 + resource/course 連結對照表 + 淡入嵌入對話串（目前 `appendRoadmapPlaceholder()` 只是文字佔位，要換成計畫第六節規格的完整卡片渲染）。
+8. 部署驗證：同步到 `~/careernav`，執行 `cdk deploy`（Lambda + S3），拿到 Function URL 填入前端 `API_ENDPOINT`。
+9. 端到端測試：至少 2 個案例（含一個觸發 `generate_roadmap`），在真實瀏覽器或至少用 curl/fetch 對正式 Function URL 測試。
+10. 報告：`docs/reports/TASK_7_REPORT.md`（記錄安全性風險：Function URL `AuthType.NONE` 無認證；技術驗證結果：SSE 不含 toolResult，改用攔截方案；已知限制：標楷體字型 fallback 等），然後 commit。
+
+### 測試環境備忘（避免新 session 重新摸索）
+
+- **workspace 是 `noexec` 磁碟**：npm/cdk/agentcore CLI 必須在 `~/careernav`（rsync 副本）執行，不能在 workspace 直接跑。同步指令見本檔案第四節。
+- **AWS credentials**：`cd ~/careernav && set -a && source .env && set +a`。
+- **Python 測試 venv**：`~/careernav_venv`（python3.14），已額外 `pip install bedrock-agentcore`（原本沒裝，本機測試 `main.py` 的 `invoke()` 需要這個套件）。
+- **前端 jsdom 測試**：`/tmp/frontend_test/`（`npm install jsdom` 完成），測試腳本 `/tmp/frontend_test/run_test.js`，用 `node /tmp/frontend_test/run_test.js` 執行，目前 21 項斷言全過。**`/tmp` 是暫存目錄，新機器/新 session 這個資料夾不會存在**，若要重跑測試需要重新 `mkdir -p /tmp/frontend_test && cd /tmp/frontend_test && npm init -y && npm install jsdom`，測試腳本內容可從本次 session 的對話記錄重建，或直接重寫（測試涵蓋：初始狀態、開場動畫只播一次、開始對話、送出訊息含 roadmap 渲染、伺服器錯誤、重新發送、網路失敗、重新開始清空對話）。
+- **視覺驗證用本機 `google-chrome --headless=new`**：`google-chrome --headless=new --disable-gpu --no-sandbox --screenshot=/tmp/xxx.png --window-size=1280,900 --virtual-time-budget=3000 --run-all-compositor-stages-before-draw "file:///path/to/frontend/index.html"`，可用來確認 CSS 動畫跑完後的最終畫面。
+- **正式 Runtime 驗證腳本**：`invoke_agent_runtime` 的 boto3 呼叫範例（含 SSE 解析）已寫入 `lambda/proxy.py` 本體，可直接 `import proxy; proxy._parse_sse_stream(raw_bytes)` 單獨測試解析邏輯，不需要每次都重新發真實請求。
+
+### Task 7 關鍵技術事實（給 Lambda/前端後續維護參考）
+
+- Runtime ARN：`arn:aws:bedrock-agentcore:us-west-2:881768789243:runtime/careernav_careernav-Su5fjSE2LM`
+- boto3 呼叫：`client("bedrock-agentcore", region_name="us-west-2").invoke_agent_runtime(agentRuntimeArn=..., runtimeSessionId=(需 33~256 字元), payload=json.dumps({"prompt": text}).encode(), contentType="application/json", accept="application/json")`
+- 回應 `resp["response"]` 是可讀取串流物件，`.read()` 拿到完整 bytes，內容為 `text/event-stream`，每行 `data: {json}\n\n`：
+  - `{"event": {"contentBlockDelta": {"delta": {"text": "..."}}}}` → 累積組成文字回覆
+  - `{"event": {"contentBlockDelta": {"delta": {"toolUse": {"input": "..."}}}}}` → 工具輸入參數片段，非回覆文字，Lambda 已正確忽略
+  - `{"careernav_tool_result": {"name": "generate_roadmap", "data": {...}}}` → `main.py` 新增的自訂事件，Lambda 直接取 `data` 當 `roadmap` 回傳給前端
 
 ### Task 6 重點提醒（避免下個 session 重踩坑）
 
@@ -106,8 +150,8 @@ AgentCore CLI
             └── tests/
                 └── test_career_tools.py    # 15 個單元測試，全數通過
 
-預定端到端架構（尚未完成）
-瀏覽器 → Lambda proxy → AgentCore Runtime → Strands Agent → Career Tools
+端到端架構（程式碼已完成，尚未部署 Lambda/S3，見「一之一」節）
+瀏覽器 → Lambda proxy (lambda/proxy.py) → AgentCore Runtime → Strands Agent → Career Tools
 ```
 
 ### 兩套 Agent 程式碼的現況（Task 3 已解決，勿重新討論）
@@ -190,21 +234,22 @@ from strands import Agent, tool
 
 ## 六、尚未完成與已知風險
 
-1. **Runtime 尚未重新部署新程式碼**：Task 3 的六步驟工具與資料只存在於 workspace，**AgentCore Runtime 上跑的還是舊骨架**（inline 空殼工具）。要讓 demo 反映最新邏輯，必須先跑一次部署流程（見第五節 `docs/DEPLOY_NOTES.md`），屬 Task 6 範圍或先行驗證用。
-2. **Lambda/S3 尚未部署**：自訂 `infra/` stack 尚未完成正式驗收。
-3. **Lambda proxy API 可能不相容**：現有 `lambda/proxy.py` 使用 `bedrock-agent-runtime.invoke_agent`，但目前部署的是 AgentCore Runtime；Task 7 必須改為 AgentCore Runtime invocation API 並實測。
-4. **尚未回填 Lambda 設定**：目前只有 AgentCore Runtime ID，Lambda 還未完成串接。
-5. **Memory 尚未啟用**：`agentcore/agentcore.json` 現在的 `memories` 為空陣列。
-6. **AWS Session Token 有效期有限**：若出現 `ExpiredToken`，更新 workspace 與 `~/careernav` 的 `.env`。
-7. **Credentials 不得 commit**：`.env` 已由 `.gitignore` 排除。
-8. **資料範圍僅涵蓋情境 A**：情境 B（雇主僱用中高齡）、情境 C（高齡者+代理人操作）尚無對應 `resources.json` 資料，Task 8 端到端測試前需決定是否補齊。
-9. **課程資料僅 3 筆計畫層級樣本**：`app/careernav/data/courses.json` 是穩定資訊，即時開課梯次要等 Task 5 接上 Exa MCP 才能補（`generate_roadmap` 已預留 `course_hint`／`hint.keywords` 欄位供即時搜尋使用）。
-10. **LINE 通知尚未啟用**：`send_notification` 目前為展示用 email 純模擬（`channel: "email"`, `demo_mode: true`）。介面已預留 `line_user_id` 參數；待取得 LINE Channel Access Token 後可加真推播＋自動降級模擬（`.env.example` 已加 `LINE_CHANNEL_ACCESS_TOKEN`／`LINE_DEMO_USER_ID` 欄位待填）。
-11. **`agent/` 目錄已停用**：不要再修改或讀取 `agent/` 下的程式碼與資料，一律在 `app/careernav/` 操作（見 `agent/DEPRECATED.md`）。
+1. **Lambda/S3 尚未部署**：`infra/` stack 已 `cdk synth` 驗證過範本，尚未 `cdk deploy`，見「一之一」步驟 8。
+2. **前端 API_ENDPOINT 是 placeholder**：`frontend/index.html` 的 `API_ENDPOINT` 常數要等 `cdk deploy` 拿到 Function URL 才能填入。
+3. **Memory 尚未啟用**：`agentcore/agentcore.json` 現在的 `memories` 為空陣列。
+4. **AWS Session Token 有效期有限**：若出現 `ExpiredToken`，更新 workspace 與 `~/careernav` 的 `.env`。
+5. **Credentials 不得 commit**：`.env` 已由 `.gitignore` 排除。
+6. **資料範圍僅涵蓋情境 A**：情境 B（雇主僱用中高齡）、情境 C（高齡者+代理人操作）尚無對應 `resources.json` 資料，Task 8 端到端測試前需決定是否補齊。
+7. **課程資料僅 3 筆計畫層級樣本**：`app/careernav/data/courses.json` 是穩定資訊，即時開課梯次由 Exa MCP 補（`generate_roadmap` 已預留 `course_hint`／`hint.keywords` 欄位供即時搜尋使用）。
+8. **LINE 通知尚未啟用**：`send_notification` 目前為展示用 email 純模擬（`channel: "email"`, `demo_mode: true`）。介面已預留 `line_user_id` 參數；待取得 LINE Channel Access Token 後可加真推播＋自動降級模擬（`.env.example` 已加 `LINE_CHANNEL_ACCESS_TOKEN`／`LINE_DEMO_USER_ID` 欄位待填）。
+9. **`agent/` 目錄已停用**：不要再修改或讀取 `agent/` 下的程式碼與資料，一律在 `app/careernav/` 操作（見 `agent/DEPRECATED.md`）。
+10. **Function URL 無認證**：計畫已定案維持 `AuthType.NONE`（比賽現場需讓評審直接開網址），此風險會記入 `docs/reports/TASK_7_REPORT.md`。
 
 ## 七、下一個 session 應執行
 
-**若要驗證目前的六步驟工具邏輯**（不需要重讀大量文件）：
+**直接接續 Task 7 步驟 6（逐字打字機效果）**，見本檔案「一之一」節第 6 點的詳細說明。完成後依序做步驟 7（時間軸元件）、8（部署驗證）、9（端到端測試）、10（報告 + commit）。
+
+**若要驗證六步驟工具邏輯**（不需要重讀大量文件）：
 ```bash
 cd app/careernav
 ~/careernav_venv/bin/python -m pytest tests/ -q   # 若無此 venv，見下方建立指令
@@ -212,34 +257,36 @@ cd app/careernav
 建立測試 venv（若尚未建立）：
 ```bash
 python3 -m venv ~/careernav_venv
-~/careernav_venv/bin/pip install --quiet pytest strands-agents
+~/careernav_venv/bin/pip install --quiet pytest strands-agents bedrock-agentcore
 ```
 
-**下一步建議走 Task 5（MCP Client 整合 Exa AI）**：
-1. 讀 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 5 段落。
-2. 在 `app/careernav/mcp/` 建立 MCP Client 封裝（`agent/mcp/__init__.py` 只是空殼佔位，記得同樣要在 `app/careernav/` 下建立，不要延用 `agent/`）。
-3. 介面需求：輸入 query（可用 `generate_roadmap` 回傳的 `courses.hint.keywords`）、輸出搜尋結果、加 timeout + graceful degradation（搜尋失敗不能讓整個 Agent 掛掉）。
-4. 在 `app/careernav/main.py` 的 Agent 建構處註冊 MCP tools。
-5. 建立 `docs/reports/TASK_5_REPORT.md`，中文 commit。
-
-**若想先補 Task 4 的正式報告**（Task 3 已順帶完成其內容，見第一節）：
-1. 讀 `app/careernav/main.py` 目前的 `SYSTEM_PROMPT` 與 `agent_factory()`，確認是否要調整人設或追問邏輯。
-2. 若無異議，直接寫 `docs/reports/TASK_4_REPORT.md` 引用 Task 3 的變更即可，不必重新設計。
-
-**若要讓 demo 真的跑起來**：需先執行 `docs/DEPLOY_NOTES.md` 的部署流程，把 `app/careernav/` 同步到 `~/careernav` 並重新 `agentcore deploy`。
+**若要重新驗證 Lambda 解析邏輯**（不需要重新部署或發真實請求）：
+```bash
+cd lambda
+~/careernav_venv/bin/python -c "
+import proxy
+# proxy._parse_sse_stream(raw_bytes) 可單獨測試 SSE 解析
+# proxy._normalize_session_id(session_id) 可單獨測試 session id 補齊
+"
+```
 
 ## 八、重要文件
 
 | 文件 | 用途 |
 |------|------|
-| `docs/IMPLEMENTATION_PLAN_20250731.md` | 唯一正式 Task 順序與驗收標準（含子代理平行策略） |
+| `docs/IMPLEMENTATION_PLAN_20250731.md` | 唯一正式 Task 順序與驗收標準（Task 7 施工順序見該檔第七節） |
 | `docs/reports/TASK_1_REPORT.md` | Task 1 完成證據 |
 | `docs/reports/TASK_2_REPORT.md` | Task 2 完成證據（含情境 A 範圍調整說明） |
 | `docs/reports/TASK_3_REPORT.md` | Task 3 完成證據（六步驟工具設計決策、測試結果） |
-| `docs/reports/AGENTCORE_RUNTIME_DEPLOYMENT_REPORT.md` | 本次 Runtime 部署檢查點 |
+| `docs/reports/AGENTCORE_RUNTIME_DEPLOYMENT_REPORT.md` | Runtime 部署檢查點 |
+| `docs/reports/TASK_7_REPORT.md` | **尚未建立**——待 Task 7 步驟 10 撰寫 |
 | `docs/DEPLOY_NOTES.md` | 雙路徑部署操作手冊 |
 | `docs/RESOURCES_SCHEMA_PROPOSAL.md` | Task 2 schema 依據 |
 | `docs/CURRENT_DATA_ISSUES.md` | 錯誤資料清單 |
 | `docs/DATA_SOURCES_VERIFIED.md` | 已驗證資料來源 |
 | `agent/DEPRECATED.md` | 說明舊 `agent/` 目錄為何停用、新位置對照表 |
-| `.kiro/steering/deploy.md` | 所有 Kiro session 自動載入的部署規則 |
+| `.kiro/steering/deploy.md` | 所有 Kiro session 自動載入的部署規則（已同步 Task 7 進度） |
+| `app/careernav/main.py` | Runtime 入口，含 Task 7 新增的 `careernav_tool_result` 攔截邏輯 |
+| `lambda/proxy.py` | Task 7 改寫完成，`invoke_agent_runtime` + SSE 解析 |
+| `infra/lib/stack.ts` | Task 7 更新完成，`AGENT_RUNTIME_ARN` + IAM 權限，尚未部署 |
+| `frontend/index.html` | Task 7 施工中（步驟 6 逐字效果未完成，步驟 7 時間軸未開始） |

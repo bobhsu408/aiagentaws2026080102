@@ -56,6 +56,17 @@ export class CareerNavStack extends cdk.Stack {
       })
     );
 
+    // AgentCore Runtime invocation（Task 7：Lambda proxy 呼叫
+    // bedrock-agentcore:InvokeAgentRuntime 串接 AgentCore Runtime）
+    agentRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock-agentcore:InvokeAgentRuntime"],
+        resources: [
+          `arn:aws:bedrock-agentcore:${this.region}:${this.account}:runtime/*`,
+        ],
+      })
+    );
+
     // CloudWatch Logs
     agentRole.addToPolicy(
       new iam.PolicyStatement({
@@ -71,6 +82,10 @@ export class CareerNavStack extends cdk.Stack {
     // ========================================
     // Lambda: Chat Proxy
     // ========================================
+    // AGENT_RUNTIME_ARN：對應 agentcore/agentcore.json 部署出的 Runtime
+    // （見 docs/DEPLOY_NOTES.md），跨 Stack 手動填入而非用 CDK cross-stack
+    // 參照，因為 AgentCore Runtime 由獨立的 `agentcore deploy` CLI 管理，
+    // 不屬於本 Stack 建立的資源。
     const proxyLambda = new lambda.Function(this, "ChatProxy", {
       functionName: "careernav-chat-proxy",
       runtime: lambda.Runtime.PYTHON_3_12,
@@ -79,8 +94,8 @@ export class CareerNavStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(90),
       memorySize: 256,
       environment: {
-        AGENT_ID: "", // 部署 AgentCore 後填入
-        AGENT_ALIAS_ID: "", // 部署 AgentCore 後填入
+        AGENT_RUNTIME_ARN:
+          "arn:aws:bedrock-agentcore:us-west-2:881768789243:runtime/careernav_careernav-Su5fjSE2LM",
         AWS_REGION_NAME: this.region,
       },
       role: agentRole,
