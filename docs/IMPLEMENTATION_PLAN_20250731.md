@@ -99,7 +99,9 @@
 
 ---
 
-### Task 3：實作六步驟 Career Tools　🧩+🚀 混合
+### Task 3：實作六步驟 Career Tools　🧩+🚀 混合　✅ 已完成
+
+**狀態**：已完成，報告 `docs/reports/TASK_3_REPORT.md`，commit `81886fb`。程式碼位置由 `agent/` 改為 `app/careernav/`（唯一真實來源，`agent/` 已標記 DEPRECATED，詳見 `docs/HANDOFF.md` 第三節）。
 
 **目標**：完成 Agent 的核心工具函式。
 
@@ -127,15 +129,17 @@
 
 ---
 
-### Task 4：Agent 主程式與 System Prompt　🧩 主代理獨作
+### Task 4：Agent 主程式與 System Prompt　🧩 主代理獨作　⚠️ 內容已隨 Task 3 完成，缺獨立報告
+
+**狀態**：Task 3 為了讓工具能被 Runtime 載入，已同步完成本 Task 的核心產出（見 `docs/HANDOFF.md` 第一節「Task 3 順帶完成的部分」）。尚缺：獨立的 `docs/reports/TASK_4_REPORT.md`，以及確認驗收標準是否需微調（見下方）。
 
 **目標**：完成 Agent 的編排邏輯與人設。
 
-**產出**：
-- `agent/main.py` — 完整的 Agent 進入點
-- `agent/prompts/system_prompt.py` — System Prompt
+**產出**（已改為以下實際位置，非原規劃路徑）：
+- `app/careernav/main.py` — 完整的 Agent 進入點（含 SYSTEM_PROMPT、agent_factory session cache）
+- System Prompt 直接內嵌於 `main.py`（未拆獨立檔案，因 Runtime 只打包 `app/careernav/`）
 
-**驗收**：本地 `python -m agent.main` 可啟動 Agent 並完成對話。
+**驗收**：原寫「本地 `python -m agent.main`」，因 `agent/` 已停用，應改為驗證 `app/careernav/main.py` 可正確 import 六個工具（已在 Task 3 用 strands venv 驗證 `TOOL_REGISTRY` 6 個工具正確註冊），或透過 `agentcore invoke` 端到端驗證（需先部署，見 `docs/DEPLOY_NOTES.md`）。
 
 **執行模式**：🧩 主代理獨作。Agent 編排、工具註冊順序、system prompt 的六步驟引導與人設是全域語意決策，平行拆解只會製造不一致。
 

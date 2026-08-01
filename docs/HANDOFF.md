@@ -1,7 +1,7 @@
 # 職涯導航家（CareerNav）— 專案交接文件
 
-> 最後更新：2026-08-01
-> 用途：讓新 session 直接依正式計畫接續，不重做、不跳步
+> 最後更新：2026-08-01（Task 3 完成後收尾）
+> 用途：讓新 session 直接依正式計畫接續，不重做、不跳步、不用重讀大量歷史文件
 
 ## 新 session 的第一句指令
 
@@ -11,17 +11,32 @@
 
 ## 一、正式進度與下一步
 
-唯一正式計畫：`docs/IMPLEMENTATION_PLAN_20250731.md`（已於本次 session 改寫，加入子代理平行執行策略、Wave 圖、子代理使用守則）。
+唯一正式計畫：`docs/IMPLEMENTATION_PLAN_20250731.md`。
 
 | 項目 | 狀態 |
 |------|------|
 | Task 1：專案基礎設施設置 | 已完成，報告：`docs/reports/TASK_1_REPORT.md`，commit：`891e21a` |
 | AgentCore Runtime 部署檢查點 | 已提前完成並通過 invoke；這不代表 Task 6 全部完成 |
 | Task 2：實作 `resources.json` 與 `constants.json` | 已完成（MVP 範圍，見下方說明），報告：`docs/reports/TASK_2_REPORT.md` |
-| **下一個正式 Task** | **Task 3：實作六步驟 Career Tools**（讓 `match_resources`/`calculate_benefit` 改讀新 schema） |
-| Task 4～Task 9 | 尚未依正式計畫完成 |
+| Task 3：實作六步驟 Career Tools | **已完成**，報告：`docs/reports/TASK_3_REPORT.md`，commit：`81886fb` |
+| Task 4：Agent 主程式與 System Prompt | **副產品已完成**，見下方「Task 3 順帶完成的部分」，尚無獨立報告 |
+| **下一個建議 Task** | **Task 5：MCP Client 整合（Exa AI）**，或先補一份 Task 4 確認報告後再進 Task 5 |
+| Task 6～Task 9 | 尚未依正式計畫完成 |
 
-不得因 Runtime 已上線而跳過 Task 3～5。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成。
+不得因 Runtime 已上線而跳過 Task 5。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成，且**目前的程式碼變更尚未重新部署**（見第五節）。
+
+### Task 3 順帶完成的部分（重要，避免重做 Task 4）
+
+Task 3 為了讓六步驟工具能被 Runtime 實際載入，已將 `app/careernav/main.py` 改寫為：
+- `SYSTEM_PROMPT` 完整版（六步驟引導、回覆規範、易錯事實提醒）
+- `agent_factory()` session LRU cache、`NullConversationManager`
+- `from tools.career_tools import TOOL_REGISTRY` 正式載入六個工具
+
+這正是 Task 4 的核心產出（「Agent 的編排邏輯與人設」）。**未完成的只有**：
+- Task 4 原驗收標準寫的是「本地 `python -m agent.main` 可啟動」——`agent/` 已於 Task 3 標記 DEPRECATED，此驗收標準需改為 `python -m app.careernav.main`（或改用 `agentcore invoke` 驗證，見第五節）。
+- 尚未針對 Task 4 單獨寫 `docs/reports/TASK_4_REPORT.md`。
+
+**建議下一個 session**：先確認 `app/careernav/main.py` 的 system prompt 是否需要調整，若無異議就補一份簡短的 TASK_4_REPORT.md（引用 Task 3 的變更），再進 Task 5。不要重新設計一次 system prompt。
 
 ### Task 2 範圍調整說明（重要，影響後續 Task）
 
@@ -52,20 +67,32 @@
 ```text
 AgentCore CLI
   └── agentcore/agentcore.json
-       └── CodeZip: app/careernav/
-            ├── main.py              # BedrockAgentCoreApp Runtime 入口
-            └── pyproject.toml       # Runtime 依賴
+       └── CodeZip: app/careernav/          ← 唯一真實來源（Task 3 已定案）
+            ├── main.py                     # Runtime 入口：載入 tools.career_tools.TOOL_REGISTRY
+            ├── pyproject.toml              # Runtime 依賴
+            ├── data/
+            │   ├── resources.json          # 情境 A，6 筆補助資料
+            │   ├── constants.json          # 2026 基本工資等常數
+            │   └── courses.json            # 3 筆計畫層級課程樣本
+            ├── tools/
+            │   ├── career_tools.py         # 六個 @tool 薄封裝
+            │   ├── logic.py                # 純業務邏輯（零 strands 依賴，方便測試）
+            │   ├── data_loader.py          # 資料載入 + 模組快取
+            │   ├── formula.py              # ast 白名單公式/條件求值（不用 eval）
+            │   └── profile.py              # profile schema + 欄位對應表 + 啟發式萃取
+            └── tests/
+                └── test_career_tools.py    # 15 個單元測試，全數通過
 
 預定端到端架構（尚未完成）
 瀏覽器 → Lambda proxy → AgentCore Runtime → Strands Agent → Career Tools
 ```
 
-### 兩套 Agent 程式碼的現況
+### 兩套 Agent 程式碼的現況（Task 3 已解決，勿重新討論）
 
-- `agent/`：正式實作計畫原先指定的開發目錄。Task 2 的 `resources.json`／`constants.json` 已在此建立；Task 3 目前仍以此為產出位置。
-- `app/careernav/`：AgentCore CLI 實際打包部署的 CodeZip 目錄，目前只有可運作的骨架 Runtime，**尚未包含 Task 2 的資料**。
+- **`app/careernav/`：唯一真實來源**，也是 AgentCore CLI 實際打包部署的目錄。六步驟工具與所有資料都在這裡。
+- **`agent/`：已停用（DEPRECATED）**，見 `agent/DEPRECATED.md`。保留僅供歷史參考，**不要在此新增或修改程式碼**，也不要把資料改回搬到這裡。
 
-後續 Task 3～4 必須同步處理這個落差：不要只修改 `agent/` 後就直接部署，否則 Runtime 不會包含新資料與工具。建議在 Task 4 統一成單一來源，或建立明確的打包同步步驟，並在該 Task 報告記錄決策。
+如果之後要改工具或資料，一律在 `app/careernav/` 下修改。
 
 ## 四、部署路徑限制
 
@@ -140,7 +167,7 @@ from strands import Agent, tool
 
 ## 六、尚未完成與已知風險
 
-1. **Career Tools 仍是 skeleton，尚未讀取 Task 2 資料**：`agent/data/resources.json`／`constants.json` 已存在（情境 A，6 筆），但 `agent/tools/career_tools.py` 的 `match_resources`／`calculate_benefit` 還沒改寫成讀取新 schema，這是 Task 3 的工作，不能跳過。
+1. **Runtime 尚未重新部署新程式碼**：Task 3 的六步驟工具與資料只存在於 workspace，**AgentCore Runtime 上跑的還是舊骨架**（inline 空殼工具）。要讓 demo 反映最新邏輯，必須先跑一次部署流程（見第五節 `docs/DEPLOY_NOTES.md`），屬 Task 6 範圍或先行驗證用。
 2. **Lambda/S3 尚未部署**：自訂 `infra/` stack 尚未完成正式驗收。
 3. **Lambda proxy API 可能不相容**：現有 `lambda/proxy.py` 使用 `bedrock-agent-runtime.invoke_agent`，但目前部署的是 AgentCore Runtime；Task 7 必須改為 AgentCore Runtime invocation API 並實測。
 4. **尚未回填 Lambda 設定**：目前只有 AgentCore Runtime ID，Lambda 還未完成串接。
@@ -148,16 +175,35 @@ from strands import Agent, tool
 6. **AWS Session Token 有效期有限**：若出現 `ExpiredToken`，更新 workspace 與 `~/careernav` 的 `.env`。
 7. **Credentials 不得 commit**：`.env` 已由 `.gitignore` 排除。
 8. **資料範圍僅涵蓋情境 A**：情境 B（雇主僱用中高齡）、情境 C（高齡者+代理人操作）尚無對應 `resources.json` 資料，Task 8 端到端測試前需決定是否補齊。
+9. **課程資料僅 3 筆計畫層級樣本**：`app/careernav/data/courses.json` 是穩定資訊，即時開課梯次要等 Task 5 接上 Exa MCP 才能補（`generate_roadmap` 已預留 `course_hint`／`hint.keywords` 欄位供即時搜尋使用）。
+10. **LINE 通知尚未啟用**：`send_notification` 目前為展示用 email 純模擬（`channel: "email"`, `demo_mode: true`）。介面已預留 `line_user_id` 參數；待取得 LINE Channel Access Token 後可加真推播＋自動降級模擬（`.env.example` 已加 `LINE_CHANNEL_ACCESS_TOKEN`／`LINE_DEMO_USER_ID` 欄位待填）。
+11. **`agent/` 目錄已停用**：不要再修改或讀取 `agent/` 下的程式碼與資料，一律在 `app/careernav/` 操作（見 `agent/DEPRECATED.md`）。
 
 ## 七、下一個 session 應執行
 
-1. 讀 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 3。
-2. 讀 `agent/data/resources.json`（情境 A 的 6 筆資料）與 `docs/RESOURCES_SCHEMA_PROPOSAL.md`（schema 定義）。
-3. 改寫 `agent/tools/career_tools.py` 的 `match_resources`／`calculate_benefit`，讓其讀取新 schema 的 `benefit.base`/`conditional_tiers`/`surcharges`/`concurrency_rules`，而非舊版骨架的空殼回傳。
-4. 若要擴充情境 B（雇主僱用中高齡）或情境 C（高齡者+代理人操作）的資料，可先用 Task 2 的子代理平行策略查證，再補進 `resources.json`（注意 `id` 不可與現有 6 筆衝突）。
-5. 執行單元測試或至少手動呼叫每個 tool 驗證回傳合理。
-6. 建立 `docs/reports/TASK_3_REPORT.md`。
-7. 使用中文格式 commit，例如：`feat: 完成 Task 3 六步驟 Career Tools`。
+**若要驗證目前的六步驟工具邏輯**（不需要重讀大量文件）：
+```bash
+cd app/careernav
+~/careernav_venv/bin/python -m pytest tests/ -q   # 若無此 venv，見下方建立指令
+```
+建立測試 venv（若尚未建立）：
+```bash
+python3 -m venv ~/careernav_venv
+~/careernav_venv/bin/pip install --quiet pytest strands-agents
+```
+
+**下一步建議走 Task 5（MCP Client 整合 Exa AI）**：
+1. 讀 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 5 段落。
+2. 在 `app/careernav/mcp/` 建立 MCP Client 封裝（`agent/mcp/__init__.py` 只是空殼佔位，記得同樣要在 `app/careernav/` 下建立，不要延用 `agent/`）。
+3. 介面需求：輸入 query（可用 `generate_roadmap` 回傳的 `courses.hint.keywords`）、輸出搜尋結果、加 timeout + graceful degradation（搜尋失敗不能讓整個 Agent 掛掉）。
+4. 在 `app/careernav/main.py` 的 Agent 建構處註冊 MCP tools。
+5. 建立 `docs/reports/TASK_5_REPORT.md`，中文 commit。
+
+**若想先補 Task 4 的正式報告**（Task 3 已順帶完成其內容，見第一節）：
+1. 讀 `app/careernav/main.py` 目前的 `SYSTEM_PROMPT` 與 `agent_factory()`，確認是否要調整人設或追問邏輯。
+2. 若無異議，直接寫 `docs/reports/TASK_4_REPORT.md` 引用 Task 3 的變更即可，不必重新設計。
+
+**若要讓 demo 真的跑起來**：需先執行 `docs/DEPLOY_NOTES.md` 的部署流程，把 `app/careernav/` 同步到 `~/careernav` 並重新 `agentcore deploy`。
 
 ## 八、重要文件
 
@@ -166,9 +212,11 @@ from strands import Agent, tool
 | `docs/IMPLEMENTATION_PLAN_20250731.md` | 唯一正式 Task 順序與驗收標準（含子代理平行策略） |
 | `docs/reports/TASK_1_REPORT.md` | Task 1 完成證據 |
 | `docs/reports/TASK_2_REPORT.md` | Task 2 完成證據（含情境 A 範圍調整說明） |
+| `docs/reports/TASK_3_REPORT.md` | Task 3 完成證據（六步驟工具設計決策、測試結果） |
 | `docs/reports/AGENTCORE_RUNTIME_DEPLOYMENT_REPORT.md` | 本次 Runtime 部署檢查點 |
 | `docs/DEPLOY_NOTES.md` | 雙路徑部署操作手冊 |
 | `docs/RESOURCES_SCHEMA_PROPOSAL.md` | Task 2 schema 依據 |
 | `docs/CURRENT_DATA_ISSUES.md` | 錯誤資料清單 |
 | `docs/DATA_SOURCES_VERIFIED.md` | 已驗證資料來源 |
+| `agent/DEPRECATED.md` | 說明舊 `agent/` 目錄為何停用、新位置對照表 |
 | `.kiro/steering/deploy.md` | 所有 Kiro session 自動載入的部署規則 |
