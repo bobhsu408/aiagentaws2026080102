@@ -176,22 +176,212 @@
 
 ---
 
-### Task 7：Lambda Proxy + 前端接入　🔒 純序列（前端 🚀 可平行）
+### Task 7：Lambda Proxy + 前端接入　🔒 純序列（前端 🚀 可平行）　📋 詳細施工計畫已定案（2026-08-01，與使用者確認）
 
-**目標**：讓瀏覽器可以透過 HTTP 跟 Agent 對話。
+**狀態**：需求與視覺風格已與使用者逐項確認（開場動畫、復古按鈕風格、對話狀態機、
+時間軸視覺化），以下為完整施工計畫，取代本節原先的簡短描述。新 session 接續本
+Task 時，直接依「七、施工順序」逐項執行即可，不需要重新與使用者討論已定案項目。
 
-**產出**：
-- `lambda/proxy.py` — Lambda handler（須改用 AgentCore Runtime invocation API，非舊式 `invoke_agent`）
-- `lambda/requirements.txt`
-- `scripts/deploy_lambda.sh`
-- `frontend/index.html` — 聊天頁面
+**目標**：讓瀏覽器可以透過 HTTP 跟 Agent 對話，且視覺風格為「黑底白字、標楷體、
+復古 2D 遊戲按鈕」，並將 `generate_roadmap` 的結構化行動計畫渲染成可點擊連結的
+橫式時間軸圖，而非純文字。
 
-**驗收**：瀏覽器打字 → 收到 Agent 完整回覆。
+#### 一、整體架構
 
-**執行模式拆分**：
-- 🔒 **純序列**：Lambda 部署、串接 AgentCore Runtime、端到端連通測試 — 依賴 Task 6 的部署結果，且動到共享雲端資源。
-- 🚀 **可平行**：`frontend/index.html` 的 UI/UX（聊天框、串流顯示、載入狀態）與 Lambda handler 邏輯彼此獨立，可由子代理平行開發，最後主代理串接。
-- ⚠️ **安全提醒**：Function URL 目前設 `AuthType.NONE`（demo 用，無認證）。正式對外需評估加認證，落版前於報告標明此風險。
+```
+瀏覽器（純 HTML/CSS/JS，黑底白字復古風格，單一 frontend/index.html）
+   │  POST /chat  { message, session_id }
+   ▼
+Lambda Function URL（AuthType.NONE，比賽現場需讓評審直接開網址，不設認證）
+   │  boto3 bedrock-agentcore.invoke_agent_runtime()
+   ▼
+AgentCore Runtime（careernav_careernav-Su5fjSE2LM）
+   │  SSE 事件流：文字 delta + 工具呼叫事件 + 工具回傳結果
+   ▼
+Lambda 解析 SSE，組出兩份東西回給前端：
+   1. reply_text：組好的完整文字回覆（給對話氣泡顯示）
+   2. roadmap：若這輪呼叫過 generate_roadmap，附上其原始結構化 JSON（給時間軸元件畫圖）
+```
+
+核心原則：**Lambda 是唯一負責「聽懂」Agent 內部事件流的地方**，前端只認兩種
+簡單資料格式（一段文字、一份時間軸 JSON），不需要理解 SSE 或工具呼叫細節。
+
+#### 二、Lambda Proxy 改寫規格（`lambda/proxy.py`）
+
+**移除舊邏輯**：刪除 `bedrock-agent-runtime.invoke_agent` 呼叫（舊式 Bedrock
+Agents API，跟目前的 AgentCore Runtime 不相容）、移除 `AGENT_ID` /
+`AGENT_ALIAS_ID` 環境變數。
+
+**新邏輯**：
+- 改用 `boto3.client("bedrock-agentcore")`，呼叫 `invoke_agent_runtime()`：
+  - `agentRuntimeArn`：從環境變數 `AGENT_RUNTIME_ARN` 讀取
+  - `payload`：`json.dumps({"prompt": user_message}).encode()`
+  - `contentType` / `accept`：`application/json`
+- 已實測確認回應格式：`resp["response"]` 是可讀取串流物件，內容為 SSE 格式的
+  多行 `data: {...}\n\n`，解析步驟：
+  1. 逐行解析 `data: ` 開頭的 JSON
+  2. 從 `event.contentBlockDelta.delta.text` 累積組出完整文字（最終文字回覆）
+  3. **另外**盯著事件流中跟工具呼叫相關的部分，找出 `generate_roadmap` 工具的
+     呼叫結果（**尚未實測，是本 Task 第一個要做的技術驗證，見第六節**）
+- 回給前端的 JSON 格式：
+  ```json
+  {
+    "reply": "完整文字回覆...",
+    "session_id": "xxx",
+    "roadmap": { ... generate_roadmap 的原始 JSON ... } 或 null（這輪沒呼叫到）
+  }
+  ```
+- Lambda timeout 維持 90 秒（CDK 已設定）；前端另設 60 秒等待上限（見第五節）。
+- AgentCore 呼叫失敗（逾時、例外）時回傳明確錯誤訊息，讓前端能顯示錯誤畫面
+  而非卡在等待動畫。
+
+**環境變數變更**：`infra/lib/stack.ts` 的 Lambda 環境變數從 `AGENT_ID` /
+`AGENT_ALIAS_ID` 改成 `AGENT_RUNTIME_ARN`
+（`arn:aws:bedrock-agentcore:us-west-2:881768789243:runtime/careernav_careernav-Su5fjSE2LM`），
+並在 `agentRole` 新增 `bedrock-agentcore:InvokeAgentRuntime` 權限（目前只有
+`bedrock:InvokeModel` 相關權限）。
+
+**安全性決策（已與使用者確認）**：Function URL 維持 `AuthType.NONE`。理由：
+比賽現場需讓評審直接開網址使用，不設認證卡關。代價：任何拿到網址的人都能
+呼叫並產生 Bedrock 用量費用。此決策記入 `docs/reports/TASK_7_REPORT.md` 的
+「已知風險」段落；比賽後若繼續對外開放，建議補 CloudFront + API Key header
+或直接下線。
+
+#### 三、前端檔案結構
+
+單一 `frontend/index.html`（不引入建置工具，直接開瀏覽器可跑，方便丟到 S3），
+內部用 `<style>` + `<script>` 內嵌：
+
+```html
+<style>/* 復古視覺樣式：配色變數、標楷體字型、按鈕邊框、掃描線動畫、時間軸樣式 */</style>
+<body>
+  <div id="boot-screen">...</div>     <!-- 開場逐行刷入畫面 -->
+  <div id="home-screen">...</div>     <!-- 首頁：標題 + 開始對話按鈕 -->
+  <div id="chat-screen">
+    <div id="messages"></div>          <!-- 對話紀錄（含時間軸卡片） -->
+    <div id="input-bar">...</div>      <!-- 輸入框 + 送出按鈕 -->
+  </div>
+</body>
+<script>/* 狀態機切換、fetch 呼叫 Lambda、逐字顯示、時間軸渲染 */</script>
+```
+
+#### 四、視覺風格規格（已與使用者確認）
+
+| 項目 | 規格 |
+|------|------|
+| 背景 / 文字 | 純黑 `#000000` 底、純白 `#FFFFFF` 字 |
+| 字型 | `font-family: "標楷體", "DFKai-SB", "BiauKai", serif;`（非 Windows 裝置會 fallback 到 serif，效果打折，現場建議用 Windows 筆電） |
+| 按鈕 | 雙層白色邊框（外框 2px 實線 + 內縮 3px 再一層 1px 線，模擬像素邊框）；按下時整體向右下位移 2px 並移除內層框線製造按壓感；hover 時文字閃爍或背景反白 |
+| 對話氣泡 | 使用者訊息：右側白框方塊；Agent 回覆：左側白框方塊，用框線粗細/位置區分，不用顏色 |
+| 等待動畫 | 簡化版（不分六步驟階段）：「▪▪▪」三方塊依序亮暗循環的跑馬燈 |
+| 開場動畫 | 首頁每個區塊（標題/副標/按鈕）依序從上到下、每個間隔約 0.12 秒觸發淡入+輕微上移；**只在網頁第一次載入時跑一次**（用 `sessionStorage` 記 flag），「重新開始」按鈕不重播 |
+| 文字顯示 | 逐字打字機效果，固定字元間隔（約每字 20~30ms），比照一般 AI 對話工具常見節奏 |
+| 尺寸 | 只做筆電桌面尺寸（以 1280px 寬為基準），不寫 mobile media query |
+
+#### 五、狀態機（已與使用者確認）
+
+```
+[載入] → [開場動畫，僅第一次] → [首頁] --點擊開始對話--> [對話畫面]
+                                                              │
+                                            使用者送出訊息 ──▶ [等待中：跑馬燈]
+                                                              │
+                              ┌────────────成功───────────────┤
+                              ▼                               │
+                  [逐字顯示 Agent 回覆]                        │
+                  （若這輪有 roadmap 資料，                     │
+                    文字顯示完後接著淡入時間軸卡片）              │
+                              │                                │
+                              ▼                                │
+                       回到 [對話畫面]（可再輸入）                │
+                                                                │
+                              └───失敗/逾時(60秒)───────────────▶
+                                    [錯誤訊息 + 重新發送按鈕]
+```
+
+補充規則：「等待中」狀態啟動 60 秒計時器，超過強制切到錯誤狀態；「重新發送」
+重送同一則訊息；「重新開始」清空對話並切回首頁，不重播開場動畫。
+
+#### 六、時間軸視覺化 — 資料流與渲染規格（已與使用者確認：橫式、直接嵌入對話串）
+
+**資料契約（Lambda → 前端）**：`generate_roadmap`（`tools/logic.py`）原始回傳
+結構直接轉發，不重新設計格式：
+```json
+{
+  "status": "ok",
+  "timeline": [
+    { "month": 0, "label": "離職當週", "actions": [
+      { "action": "...", "priority": "必要", "related_resource": "unemployment_benefit" }
+    ]},
+    ...
+  ],
+  "decision_points": ["第 1 個月需決定：..."],
+  "courses": { "curated": [...], "hint": {...} },
+  "total_months": 6
+}
+```
+
+**連結來源**：使用者要求時間軸上要能點擊跳轉法條/補助/課程網址。
+**建議做法**：不讓 Lambda 動態查詢，而是把 `resources.json`（6 筆）與
+`courses.json`（3 筆）的精簡版（`id`/`name`/`source_url`/`law_references`）
+直接打包進前端 JS 常數物件，時間軸渲染時用 `related_resource` id 查表取得
+連結，不需額外網路請求。
+
+**渲染規格（橫式時間軸）**：
+- 橫向排列節點卡片，一個月份（或月份區間）為一節點，節點間用白色橫線串接
+- 每節點：月份標籤 + 該月 `actions` 列表（標明 priority：必要/建議/決策點/里程碑）
+- `priority === "決策點"` 或落在 `decision_points` 範圍的項目，用加粗/閃爍框線凸顯
+- `action.related_resource` 有值時，該行文字變成可點擊連結（開新分頁）
+- 課程建議（`courses.curated`）附在對應月份節點下方，同樣可點擊
+- 節點區塊允許 `overflow-x: auto` 橫向捲動（保險措施，設計目標是 4~5 個節點在筆電螢幕內完整顯示）
+- 出現時機：Agent 文字回覆逐字顯示完畢後，緊接著在同一則訊息下方淡入時間軸卡片
+
+**技術風險與驗證方式（必須排在動工最前面）**：先用實際 invoke 測試一次觸發
+`generate_roadmap` 的問題，確認：
+1. AgentCore SSE 事件流裡工具呼叫的輸入/輸出用哪種事件類型傳遞（目前只實測
+   過純文字 delta，見 `docs/reports/DEMO_TEST_RESULTS_20260801.md`，還沒實測
+   帶工具呼叫結果的完整事件流）
+2. 這個事件結構能否讓 Lambda 可靠抓到 `generate_roadmap` 的完整回傳 JSON
+
+**備案**：若事件流解析不穩定（截斷、格式不可靠），改用「文字內嵌 JSON 標記」
+方案——在 system prompt 加規則，要求 Agent 在文字回覆最後附加一段特定格式的
+標記區塊（例如用 ` ```roadmap-data ... ``` ` 包住 roadmap JSON），Lambda 用正則
+表達式抓出後從顯示文字中移除。這個方案不依賴事件流細節，較土法煉鋼但更穩定。
+**技術驗證的結果決定用哪一種方案，需排在第一步做**。
+
+#### 七、施工順序（Task 拆解，依序執行）
+
+1. **技術驗證**：實測觸發 `generate_roadmap` 的 invoke，確認 SSE 事件流裡工具結果的抓取方式，決定用「事件流解析」或「文字內嵌 JSON 標記」方案
+2. **Lambda 改寫**：`lambda/proxy.py` 換成 `invoke_agent_runtime`，解析文字 + roadmap 資料，加逾時/錯誤處理
+3. **CDK 更新**：`infra/lib/stack.ts` 環境變數改 `AGENT_RUNTIME_ARN`，IAM Role 補 `InvokeAgentRuntime` 權限
+4. **前端骨架**：狀態機切換邏輯（開場→首頁→對話→等待→錯誤→重置），先用純文字驗證整條鏈路能通（不做視覺樣式）
+5. **前端視覺**：套上黑底白字標楷體 + 復古按鈕邊框 + 開場逐行刷入動畫 + 等待跑馬燈
+6. **逐字顯示**：文字打字機效果
+7. **時間軸元件**：橫式時間軸渲染 + resource/course 連結對照表 + 淡入嵌入對話串
+8. **部署驗證**：同步到 `~/careernav`，部署 CDK stack（Lambda + S3，若比賽帳號權限允許），或視部署環境限制決定是否改用替代方案（見第八節風險 1）
+9. **端到端測試**：至少 2 個案例（含一個會觸發 `generate_roadmap` 的完整流程），確認文字、時間軸、連結、錯誤情境都正常
+10. **報告**：`docs/reports/TASK_7_REPORT.md`，記錄安全性風險（Function URL 無認證）、技術驗證結果（用了哪個方案）、已知限制，然後 commit
+
+#### 八、已知風險（提前記錄，避免下個 session 重新踩坑）
+
+1. **比賽帳號權限未知**：`docs/TODO_NEXT_SESSIONS.md` 提過比賽帳號可能缺
+   Lambda/API Gateway 權限，`infra/` 的 CDK 部署到目前為止還沒實際跑過。動工
+   第一步（施工順序 8）要先確認 Lambda + Function URL 能否在目前帳號建立成
+   功，若不行需要討論備案（例如本機跑 Lambda 邏輯 + ngrok，或前端用瀏覽器
+   SigV4 簽名直連 AgentCore，即 `TODO_NEXT_SESSIONS.md` T1 提過的替代方案）。
+2. **SSE 事件流解析是未知數**：第六節的技術風險，可能導致改用「文字內嵌
+   JSON 標記」備案，這會需要微調 system prompt。
+3. **標楷體字型**：非 Windows 裝置會 fallback 到 serif，現場若用非 Windows
+   筆電操作，視覺效果會打折。
+
+**產出檔案清單**：
+- `lambda/proxy.py`（改寫）、`lambda/requirements.txt`
+- `infra/lib/stack.ts`（環境變數 + IAM 權限更新）
+- `frontend/index.html`（完整重寫，取代目前的骨架版）
+- `docs/reports/TASK_7_REPORT.md`（新增）
+
+**驗收標準**：瀏覽器打字 → 收到 Agent 完整回覆（逐字顯示）；觸發 roadmap 的
+問題會額外顯示可點擊的橫式時間軸；等待超過 60 秒或發生錯誤時顯示明確錯誤畫面
+與重試按鈕；CloudWatch 無新增 ERROR/Exception。
 
 ---
 

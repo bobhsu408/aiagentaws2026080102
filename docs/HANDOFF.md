@@ -22,7 +22,8 @@
 | Task 4：Agent 主程式與 System Prompt | **副產品已完成**，見下方「Task 3 順帶完成的部分」，尚無獨立報告 |
 | Task 5：MCP Client 整合（Exa AI） | **已完成**，報告：`docs/reports/TASK_5_REPORT.md` |
 | Task 6：CDK 基礎設施完善 + AgentCore 部署 | **已完成**（AgentCore Runtime 部分），報告：`docs/reports/TASK_6_REPORT.md`。`infra/`（Lambda+S3）仍未部署，見下方提醒 |
-| **下一個建議 Task** | **Task 7：Lambda Proxy + 前端接入**，或先補一份 Task 4 確認報告 |
+| Task 7：Lambda Proxy + 前端接入 | **施工計畫已定案**（與使用者確認視覺風格/狀態機/時間軸規格），尚未開始寫程式碼。完整計畫見 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 7 段落，**直接照該節「七、施工順序」逐項執行，不需重新討論已定案項目** |
+| **下一個建議 Task** | **接續 Task 7**，從施工順序第 1 步「技術驗證（SSE 事件流是否能抓到 generate_roadmap 工具結果）」開始 |
 | Task 8～Task 9 | 尚未依正式計畫完成 |
 
 Runtime 已於 Task 6 重新部署，**線上程式碼已是 Task 3～5 的最新版本**（不再是舊骨架），已用 `agentcore invoke` 實測六步驟工具與 Exa MCP 搜尋皆正常運作，CloudWatch 無錯誤。

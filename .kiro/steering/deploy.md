@@ -12,7 +12,7 @@ inclusion: auto
 - **Task 5 已完成**（MCP Client 整合 Exa AI，`docs/reports/TASK_5_REPORT.md`）。套件位於
   `app/careernav/exa_mcp/`（刻意不叫 `mcp/`，會與 PyPI 的 `mcp` 套件撞名，詳見報告）。
 - **Task 6 已完成**（`docs/reports/TASK_6_REPORT.md`）：Runtime 已重新部署，**線上程式碼已是 Task 3～5 最新版**，用 `agentcore invoke` 實測六步驟工具與 Exa MCP 搜尋皆正常，CloudWatch 無錯誤。`infra/`（Lambda+S3）仍未部署。
-- 新 session 下一步建議進 **Task 7（Lambda Proxy + 前端接入）**；或先補一份 Task 4 報告。每完成一個 Task 要建立報告並 commit。
+- **Task 7（Lambda Proxy + 前端接入）施工計畫已定案**，與使用者確認過視覺風格（黑底白字標楷體、復古按鈕）、狀態機（開場動畫僅一次→首頁→對話→等待→錯誤）、時間軸視覺化規格（橫式、可點擊連結）。完整計畫見 `docs/IMPLEMENTATION_PLAN_20250731.md` Task 7 段落，新 session 直接照其「七、施工順序」執行，**不要重新詢問使用者已定案的視覺/互動細節**。第一步是技術驗證：實測 `generate_roadmap` 觸發時 SSE 事件流能否可靠抓到工具結果。
 - 詳細現況與待辦：`docs/HANDOFF.md`（每次 Task 完成後應同步更新此檔案）。
 
 ## AWS Runtime
