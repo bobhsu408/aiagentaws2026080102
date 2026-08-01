@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from strands.types.tools import tool
+from strands import tool
 
 # 資料路徑（相對於此檔案）
 DATA_DIR = Path(__file__).parent.parent / "data"

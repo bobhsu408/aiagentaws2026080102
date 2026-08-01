@@ -50,6 +50,10 @@ samconfig.toml
 .kiro/settings/
 .kiro/cache/
 
+# --- AgentCore CLI 本機狀態 / 生成產物 ---
+agentcore/.cli/
+agentcore/cdk/dist/
+
 # --- 臨時檔案 ---
 *.log
 *.tmp

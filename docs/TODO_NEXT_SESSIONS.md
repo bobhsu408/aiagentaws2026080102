@@ -1,6 +1,8 @@
 # 職涯導航家 — 待辦事項清單（按優先序）
 
-> 最後更新：2026-07-29
+> **2026-08-01 執行提示**：目前唯一正式執行順序以 `docs/IMPLEMENTATION_PLAN_20250731.md` 為準。Task 1 已完成；AgentCore Runtime 已額外先行部署並通過 invoke，但這只是部署檢查點，**不代表 Task 6 完成**。新 session 下一步必須從 **Task 2** 開始，完成每個 Task 後建立 `docs/reports/TASK_N_REPORT.md` 並 commit。
+>
+> 最後更新：2026-08-01
 > 每項含預估工時、前置依賴、驗收標準
 
 ---

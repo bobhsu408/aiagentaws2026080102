@@ -1,0 +1,32 @@
+{
+  "name": "careernav",
+  "version": 1,
+  "managedBy": "CDK",
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "careernav"
+  },
+  "runtimes": [
+    {
+      "name": "careernav",
+      "build": "CodeZip",
+      "entrypoint": "main.py",
+      "codeLocation": "app/careernav/",
+      "runtimeVersion": "PYTHON_3_14",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP"
+    }
+  ],
+  "memories": [],
+  "knowledgeBases": [],
+  "credentials": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [],
+  "agentCoreGateways": [],
+  "policyEngines": [],
+  "configBundles": [],
+  "abTests": [],
+  "harnesses": [],
+  "datasets": [],
+  "payments": []
+}

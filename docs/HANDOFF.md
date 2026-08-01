@@ -1,154 +1,161 @@
 # 職涯導航家（CareerNav）— 專案交接文件
 
-> 最後更新：2026-07-29
-> 用途：讓任何新 session / 新成員在 5 分鐘內掌握此專案全貌
+> 最後更新：2026-08-01
+> 用途：讓新 session 直接依正式計畫接續，不重做、不跳步
 
----
+## 新 session 的第一句指令
 
-## 一、專案目的
+請直接使用：
 
-參加 **2026 雲湧智生：臺灣生成式 AI 應用黑客松**（TIARA 臺灣半導體產學研發聯盟出題）。
+> 請接續當前計畫並執行，嚴格按照 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 順序；每完成一個 Task，建立 `docs/reports/TASK_N_REPORT.md`、驗證結果並 commit。
 
-核心問題：台灣半導體/製造業 AI 化導致中高齡、藍領、服務業勞工失業，但政府補助資訊散落、門檻高、職訓預算執行率不到 30%。
+## 一、正式進度與下一步
 
-產品：一站式 AI 對話 Agent — 使用者用一句話描述狀況，Agent 自動跑六步驟產出完整轉職行動計畫。
+唯一正式計畫：`docs/IMPLEMENTATION_PLAN_20250731.md`。
 
----
+| 項目 | 狀態 |
+|------|------|
+| Task 1：專案基礎設施設置 | 已完成，報告：`docs/reports/TASK_1_REPORT.md`，commit：`891e21a` |
+| AgentCore Runtime 部署檢查點 | 已提前完成並通過 invoke；這不代表 Task 6 全部完成 |
+| **下一個正式 Task** | **Task 2：實作 `resources.json` 與 `constants.json`** |
+| Task 3～Task 9 | 尚未依正式計畫完成 |
 
-## 二、技術架構
+不得因 Runtime 已上線而跳過 Task 2～5。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成。
 
-```
-瀏覽器 (frontend/index.html，未在此 repo)
-    │ HTTP POST
-    ▼
-Lambda: careernav-chat-proxy (proxy_lambda/app.py)
-    │ boto3 + SigV4
-    ▼
-Amazon Bedrock AgentCore Runtime
-    ├── Strands Agent + Claude Sonnet 4.5
-    ├── 6 Career Tools (tools/career_tools.py)
-    ├── MCP Client → Exa AI 網路搜尋
-    └── AgentCore Memory (內建對話記憶)
-```
+## 二、目前可用的 AWS Runtime
 
-### 核心技術棧
+- Region：`us-west-2`
+- Account：`881768789243`
+- Model：`us.anthropic.claude-sonnet-4-5-20250929-v1:0`
+- AgentCore CLI：`0.25.0`
+- Stack：`AgentCore-careernav-default`
+- Runtime ID：`careernav_careernav-Su5fjSE2LM`
+- Runtime ARN：`arn:aws:bedrock-agentcore:us-west-2:881768789243:runtime/careernav_careernav-Su5fjSE2LM`
+- Runtime 狀態：`READY`
+- `agentcore invoke`：已成功回覆繁體中文
 
-| 層 | 技術 |
-|---|---|
-| Agent 框架 | `strands-agents` (Python) |
-| LLM | Claude Sonnet 4.5 via Bedrock |
-| 託管 | Amazon Bedrock AgentCore (CodeZip, Python 3.14) |
-| 基礎設施 | AWS CDK (`@aws/agentcore-cdk`) |
-| 即時搜尋 | Exa AI via MCP Client |
-| 部署 CLI | `agentcore deploy` |
+部署檢查點報告：`docs/reports/AGENTCORE_RUNTIME_DEPLOYMENT_REPORT.md`。
 
----
+## 三、目前實際架構
 
-## 三、六步驟 Pipeline
+```text
+AgentCore CLI
+  └── agentcore/agentcore.json
+       └── CodeZip: app/careernav/
+            ├── main.py              # BedrockAgentCoreApp Runtime 入口
+            └── pyproject.toml       # Runtime 依賴
 
-| # | Tool | 輸入 | 輸出 |
-|---|------|------|------|
-| 1 | `analyze_profile` | 自然語言描述 | 結構化背景（年齡/產業/年資/離職原因等） |
-| 2 | `match_resources` | 背景欄位 | 符合資格的補助方案清單 |
-| 3 | `calculate_benefit` | matched_ids + 月投保薪資 | 每月/總計金額試算 |
-| 4 | `generate_roadmap` | matched_ids + 訓練意願 | 1~6 個月時間軸 |
-| 5 | `get_checklist` | matched_ids | 應備文件清單 |
-| 6 | `send_notification` | email + summary | Email 通知（目前 demo 模擬） |
-
----
-
-## 四、目前狀態
-
-### 已完成 ✅
-
-- Agent 六步驟邏輯完整
-- 8 筆示範用補助資料 (`resources.json`)
-- `agentcore deploy` 部署成功（stack: `AgentCore-careernav-default`）
-- CLI `agentcore invoke` 測試通過
-- Lambda proxy 程式碼寫好 + 部署腳本
-- 前端聊天頁面雛型（不在此 repo）
-
-### 卡住 ❌
-
-- **前端接入**：瀏覽器→Agent 的連線被帳號政策擋住
-  - Lambda Function URL (auth-type NONE) → 403
-  - API Gateway → 帳號無權限
-  - CloudFront → 查詢被擋，建立未確認
-- **資料品質**：8 筆 mock 中有 6 筆金額/條件錯誤（詳見 `CURRENT_DATA_ISSUES.md`）
-
-### 關鍵限制
-
-- 比賽帳號是 AWS Workshop Studio 沙盒（帳號 `893083750609`）
-- 缺 DynamoDB、API Gateway、SES、SNS
-- 正式比賽當天會發新帳號，權限可能不同
-
----
-
-## 五、檔案結構
-
-```
-careernav/
-├── HANDOFF.md                    ← 本文件（交接用）
-├── DATA_STRATEGY.md              ← 資料來源策略
-├── DATA_SOURCES_VERIFIED.md      ← 經實測的資料源清單
-├── RESOURCES_SCHEMA_PROPOSAL.md  ← 新版 schema 設計
-├── CURRENT_DATA_ISSUES.md        ← 現有資料錯誤對照
-├── TODO_NEXT_SESSIONS.md         ← 待辦事項（優先序）
-├── PROJECT_OVERVIEW.md           ← 原專案結構化介紹
-├── PROGRESS.md                   ← 開發進度紀錄
-├── DATA_SOURCES.md               ← 原始資料規劃（未實測前）
-├── AGENTS.md                     ← AgentCore CLI 使用說明
-├── README.md                     ← AgentCore 預設 README
-├── agentcore/
-│   ├── agentcore.json            ← 專案宣告（runtime + memory）
-│   ├── aws-targets.json          ← 部署目標帳號
-│   └── cdk/                      ← CDK 基礎設施（TypeScript）
-├── app/career_navigator/
-│   ├── main.py                   ← 進入點（Agent 編排）
-│   ├── model/load.py             ← Bedrock 模型載入
-│   ├── memory/session.py         ← AgentCore Memory 整合
-│   ├── mcp_client/client.py      ← Exa AI MCP 客戶端
-│   ├── tools/career_tools.py     ← 六步驟工具實作
-│   ├── data/resources.json       ← 補助資料（8 筆，待修正擴充）
-│   └── pyproject.toml            ← Python 依賴宣告
-├── proxy_lambda/app.py           ← Lambda 轉接站
-└── deploy_proxy.sh               ← Lambda 部署腳本
+預定端到端架構（尚未完成）
+瀏覽器 → Lambda proxy → AgentCore Runtime → Strands Agent → Career Tools
 ```
 
----
+### 兩套 Agent 程式碼的現況
 
-## 六、快速接手指南
+- `agent/`：正式實作計畫原先指定的開發目錄，Task 2、Task 3 目前仍以此為產出位置。
+- `app/careernav/`：AgentCore CLI 實際打包部署的 CodeZip 目錄，目前只有可運作的骨架 Runtime。
 
-### 如果要繼續開發資料層
+後續 Task 2～4 必須同步處理這個落差：不要只修改 `agent/` 後就直接部署，否則 Runtime 不會包含新資料與工具。建議在 Task 4 統一成單一來源，或建立明確的打包同步步驟，並在該 Task 報告記錄決策。
 
-1. 先讀 `DATA_STRATEGY.md` 了解三層策略
-2. 讀 `CURRENT_DATA_ISSUES.md` 了解現有資料哪裡錯
-3. 讀 `RESOURCES_SCHEMA_PROPOSAL.md` 了解新 schema
-4. 開始擴充 `resources.json`
+## 四、部署路徑限制
 
-### 如果要解決前端接入
+Workspace 位於：
 
-1. 讀 `PROGRESS.md` 的「目前卡住的地方」
-2. 最可行方案：Cognito Identity Pool 發臨時憑證 → 前端 AWS SDK for JS 做 SigV4
-3. 帳號有 `cognito-idp:*`，但需確認是否包含 Identity Pool
+```text
+/media/data/共用文件/專案開發/aws/hoyilive
+```
 
-### 如果比賽當天拿到新帳號
+此磁碟以 `noexec` 掛載，不能執行 npm 安裝的 `esbuild` binary。因此：
 
-1. 跑權限檢查：`aws iam list-attached-role-policies --role-name WSParticipantRole`
-2. 確認 Bedrock AgentCore、Lambda、Cognito 可用
-3. 重跑 `agentcore deploy`
-4. 前端接入方案依帳號權限決定
+- 開發與 Git：在 workspace 路徑操作
+- npm/CDK/AgentCore 部署：同步到 `~/careernav` 後操作
 
----
+安全同步指令：
 
-## 七、相關文件索引
+```bash
+rsync -av --delete \
+  --exclude='.git' \
+  --exclude='node_modules' \
+  --exclude='__pycache__' \
+  --exclude='cdk.out' \
+  --exclude='agentcore/.cli' \
+  "/media/data/共用文件/專案開發/aws/hoyilive/" \
+  "$HOME/careernav/"
+```
+
+`agentcore/.cli` 必須保留部署目錄中的版本，因為它包含 Runtime deployment state。
+
+部署與驗證：
+
+```bash
+cd ~/careernav
+export PATH="$HOME/.local/bin:$PATH"
+set -a
+source .env
+set +a
+agentcore validate
+agentcore deploy --yes --verbose
+agentcore status --json
+agentcore invoke "你好" --json
+```
+
+完整說明：`docs/DEPLOY_NOTES.md`。
+
+## 五、本階段已解決的問題
+
+最初 invoke 回傳：
+
+```text
+Runtime initialization time exceeded
+```
+
+CloudWatch 的真正原因不是冷啟動，而是：
+
+```text
+ImportError: cannot import name 'tool' from 'strands.types.tools'
+```
+
+已將以下檔案改為從 Strands 頂層匯入 `tool`：
+
+- `app/careernav/main.py`
+- `agent/tools/career_tools.py`
+
+正確寫法：
+
+```python
+from strands import Agent, tool
+```
+
+重新部署後 invoke 成功，最近一次驗證期間 CloudWatch 沒有新的 ERROR、Traceback、ImportError 或 Exception。
+
+## 六、尚未完成與已知風險
+
+1. **Task 2 資料尚未建立**：目前六個 Career Tools 仍是 skeleton，不能當成正式補助判斷。
+2. **Lambda/S3 尚未部署**：自訂 `infra/` stack 尚未完成正式驗收。
+3. **Lambda proxy API 可能不相容**：現有 `lambda/proxy.py` 使用 `bedrock-agent-runtime.invoke_agent`，但目前部署的是 AgentCore Runtime；Task 7 必須改為 AgentCore Runtime invocation API 並實測。
+4. **尚未回填 Lambda 設定**：目前只有 AgentCore Runtime ID，Lambda 還未完成串接。
+5. **Memory 尚未啟用**：`agentcore/agentcore.json` 現在的 `memories` 為空陣列。
+6. **AWS Session Token 有效期有限**：若出現 `ExpiredToken`，更新 workspace 與 `~/careernav` 的 `.env`。
+7. **Credentials 不得 commit**：`.env` 已由 `.gitignore` 排除。
+
+## 七、下一個 session 應執行
+
+1. 讀 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 2。
+2. 讀 `docs/RESOURCES_SCHEMA_PROPOSAL.md`、`docs/CURRENT_DATA_ISSUES.md`、`docs/DATA_SOURCES_VERIFIED.md`。
+3. 建立 `agent/data/resources.json`（15～20 筆）與 `agent/data/constants.json`。
+4. 確保每筆資料具備 `law_references`、`recipient`、`source_url`、`last_verified`，金額採結構化欄位。
+5. 執行資料格式與品質驗證。
+6. 建立 `docs/reports/TASK_2_REPORT.md`。
+7. 使用中文格式 commit，例如：`feat: 完成 Task 2 補助資料建置`。
+
+## 八、重要文件
 
 | 文件 | 用途 |
 |------|------|
-| `DATA_STRATEGY.md` | 資料從哪來、怎麼整理、用在哪 |
-| `DATA_SOURCES_VERIFIED.md` | 每個資料源的實測結果和範例 |
-| `RESOURCES_SCHEMA_PROPOSAL.md` | 新 schema 讓金額/條件分支表達正確 |
-| `CURRENT_DATA_ISSUES.md` | 現有 8 筆資料的逐筆勘誤表 |
-| `TODO_NEXT_SESSIONS.md` | 所有待辦依優先序排列，含工時預估 |
-| `PROJECT_OVERVIEW.md` | 原始完整專案介紹 |
-| `PROGRESS.md` | 完整開發歷程紀錄 |
+| `docs/IMPLEMENTATION_PLAN_20250731.md` | 唯一正式 Task 順序與驗收標準 |
+| `docs/reports/TASK_1_REPORT.md` | Task 1 完成證據 |
+| `docs/reports/AGENTCORE_RUNTIME_DEPLOYMENT_REPORT.md` | 本次 Runtime 部署檢查點 |
+| `docs/DEPLOY_NOTES.md` | 雙路徑部署操作手冊 |
+| `docs/RESOURCES_SCHEMA_PROPOSAL.md` | Task 2 schema 依據 |
+| `docs/CURRENT_DATA_ISSUES.md` | 錯誤資料清單 |
+| `docs/DATA_SOURCES_VERIFIED.md` | 已驗證資料來源 |
+| `.kiro/steering/deploy.md` | 所有 Kiro session 自動載入的部署規則 |
