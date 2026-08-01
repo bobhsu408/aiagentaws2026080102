@@ -11,16 +11,27 @@
 
 ## 一、正式進度與下一步
 
-唯一正式計畫：`docs/IMPLEMENTATION_PLAN_20250731.md`。
+唯一正式計畫：`docs/IMPLEMENTATION_PLAN_20250731.md`（已於本次 session 改寫，加入子代理平行執行策略、Wave 圖、子代理使用守則）。
 
 | 項目 | 狀態 |
 |------|------|
 | Task 1：專案基礎設施設置 | 已完成，報告：`docs/reports/TASK_1_REPORT.md`，commit：`891e21a` |
 | AgentCore Runtime 部署檢查點 | 已提前完成並通過 invoke；這不代表 Task 6 全部完成 |
-| **下一個正式 Task** | **Task 2：實作 `resources.json` 與 `constants.json`** |
-| Task 3～Task 9 | 尚未依正式計畫完成 |
+| Task 2：實作 `resources.json` 與 `constants.json` | 已完成（MVP 範圍，見下方說明），報告：`docs/reports/TASK_2_REPORT.md` |
+| **下一個正式 Task** | **Task 3：實作六步驟 Career Tools**（讓 `match_resources`/`calculate_benefit` 改讀新 schema） |
+| Task 4～Task 9 | 尚未依正式計畫完成 |
 
-不得因 Runtime 已上線而跳過 Task 2～5。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成。
+不得因 Runtime 已上線而跳過 Task 3～5。Task 6 還包含基礎設施完善與完整部署驗收，目前尚未完成。
+
+### Task 2 範圍調整說明（重要，影響後續 Task）
+
+原計畫要求 15~20 筆資料求全。與使用者討論後改為 **MVP 情境反推法**：比賽主題是「因應高齡化的人力結構與人力發展」，因此重新設計三個情境並聚焦其中一個先做：
+
+- **情境 A（已建立資料）**：58 歲工廠作業員因產線自動化被資遣，距退休 7 年，體力已無法再做同類工作 → 技能斷層與轉銜。`resources.json` 目前 **6 筆**，全部對應此情境：`unemployment_benefit`、`training_living_allowance`、`early_reemployment_bonus`、`relocation_transport_subsidy`、`relocation_moving_subsidy`、`relocation_rent_subsidy`。
+- **情境 B（尚未建立資料）**：小型工廠雇主想僱用中高齡被裁員者，關注僱用成本 → 企業端人力發展（對應 `mid_age_employment_subsidy_employer` 類資料，`recipient: 雇主`）。
+- **情境 C（尚未建立資料）**：62 歲高齡者由子女代為操作系統查詢 → 高齡者再就業 + **介面可及性**（打字對此族群是負擔，暗示 Task 4 system prompt 需支援「代理人敘述」、Task 7 前端需考慮簡化流程/語音輸入，但這屬 UX 決策，尚未定案，留待 Task 4/7 討論）。
+
+**下一個 session 若要擴充情境 B、C 的資料**，可依 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 2 平行策略開子代理查證（僱用獎助已在法規中確認，健保費補助、職務再設計也已核對，可直接補寫；產業新尖兵/微型創業鳳凰等第 2 層行政計畫類資料才需要子代理查官網）。
 
 ## 二、目前可用的 AWS Runtime
 
@@ -139,20 +150,21 @@ from strands import Agent, tool
 
 ## 七、下一個 session 應執行
 
-1. 讀 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 2。
-2. 讀 `docs/RESOURCES_SCHEMA_PROPOSAL.md`、`docs/CURRENT_DATA_ISSUES.md`、`docs/DATA_SOURCES_VERIFIED.md`。
-3. 建立 `agent/data/resources.json`（15～20 筆）與 `agent/data/constants.json`。
-4. 確保每筆資料具備 `law_references`、`recipient`、`source_url`、`last_verified`，金額採結構化欄位。
-5. 執行資料格式與品質驗證。
-6. 建立 `docs/reports/TASK_2_REPORT.md`。
-7. 使用中文格式 commit，例如：`feat: 完成 Task 2 補助資料建置`。
+1. 讀 `docs/IMPLEMENTATION_PLAN_20250731.md` 的 Task 3。
+2. 讀 `agent/data/resources.json`（情境 A 的 6 筆資料）與 `docs/RESOURCES_SCHEMA_PROPOSAL.md`（schema 定義）。
+3. 改寫 `agent/tools/career_tools.py` 的 `match_resources`／`calculate_benefit`，讓其讀取新 schema 的 `benefit.base`/`conditional_tiers`/`surcharges`/`concurrency_rules`，而非舊版骨架的空殼回傳。
+4. 若要擴充情境 B（雇主僱用中高齡）或情境 C（高齡者+代理人操作）的資料，可先用 Task 2 的子代理平行策略查證，再補進 `resources.json`（注意 `id` 不可與現有 6 筆衝突）。
+5. 執行單元測試或至少手動呼叫每個 tool 驗證回傳合理。
+6. 建立 `docs/reports/TASK_3_REPORT.md`。
+7. 使用中文格式 commit，例如：`feat: 完成 Task 3 六步驟 Career Tools`。
 
 ## 八、重要文件
 
 | 文件 | 用途 |
 |------|------|
-| `docs/IMPLEMENTATION_PLAN_20250731.md` | 唯一正式 Task 順序與驗收標準 |
+| `docs/IMPLEMENTATION_PLAN_20250731.md` | 唯一正式 Task 順序與驗收標準（含子代理平行策略） |
 | `docs/reports/TASK_1_REPORT.md` | Task 1 完成證據 |
+| `docs/reports/TASK_2_REPORT.md` | Task 2 完成證據（含情境 A 範圍調整說明） |
 | `docs/reports/AGENTCORE_RUNTIME_DEPLOYMENT_REPORT.md` | 本次 Runtime 部署檢查點 |
 | `docs/DEPLOY_NOTES.md` | 雙路徑部署操作手冊 |
 | `docs/RESOURCES_SCHEMA_PROPOSAL.md` | Task 2 schema 依據 |

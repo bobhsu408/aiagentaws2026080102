@@ -1,6 +1,8 @@
 # 職涯導航家 — 待辦事項清單（按優先序）
 
-> **2026-08-01 執行提示**：目前唯一正式執行順序以 `docs/IMPLEMENTATION_PLAN_20250731.md` 為準。Task 1 已完成；AgentCore Runtime 已額外先行部署並通過 invoke，但這只是部署檢查點，**不代表 Task 6 完成**。新 session 下一步必須從 **Task 2** 開始，完成每個 Task 後建立 `docs/reports/TASK_N_REPORT.md` 並 commit。
+> **2026-08-01 執行提示**：目前唯一正式執行順序以 `docs/IMPLEMENTATION_PLAN_20250731.md` 為準。Task 1、Task 2 已完成；AgentCore Runtime 已額外先行部署並通過 invoke，但這只是部署檢查點，**不代表 Task 6 完成**。新 session 下一步從 **Task 3** 開始，完成每個 Task 後建立 `docs/reports/TASK_N_REPORT.md` 並 commit。
+>
+> **Task 2 範圍調整**：改用 MVP 情境反推法，聚焦「情境 A：58歲工廠作業員因自動化被資遣」，`resources.json` 目前僅 6 筆（失業給付、職業訓練生活津貼、提早就業獎助、異地就業交通/搬遷/租屋補助）。以下 T2、T3、T7 等提及「15~22 筆」「resources_v2.json」的內容已被 Task 2 實際執行取代，詳見 `docs/reports/TASK_2_REPORT.md`。情境 B（雇主僱用中高齡）、情境 C（高齡者+代理人操作）尚未建資料，可視時間補充。
 >
 > 最後更新：2026-08-01
 > 每項含預估工時、前置依賴、驗收標準
