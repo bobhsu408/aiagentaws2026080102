@@ -44,10 +44,13 @@
 
 ## 檔案結構重點
 
+- `agent/` — Strands Agent 主程式（main.py, tools/, prompts/, mcp/, data/）
+- `infra/` — AWS CDK 基礎設施（TypeScript）
+- `lambda/` — Lambda Chat Proxy
+- `frontend/` — 前端靜態網站
 - `scraper/` — 資料擷取模組（台灣就業通 + 法規 API）
-- `data_pipeline/` — 舊版擷取腳本
-- `docs/` — 專案文件（策略、交接、待辦等）
-- 主要 Agent 程式碼不在此 repo（在 AgentCore 部署包中）
+- `scripts/` — 部署與工具腳本
+- `docs/` — 專案文件（策略、交接、報告等）
 
 ## 開發規範
 

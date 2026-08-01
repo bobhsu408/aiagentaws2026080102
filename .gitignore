@@ -1,4 +1,8 @@
-# Python
+# ============================================
+# 職涯導航家（CareerNav）Git 忽略規則
+# ============================================
+
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,31 +13,43 @@ build/
 *.egg
 venv/
 .venv/
+.mypy_cache/
+.pytest_cache/
 
-# Node / CDK
+# --- Node / CDK ---
 node_modules/
 cdk.out/
 *.js.map
 *.d.ts
+infra/dist/
 
-# Environment & secrets
+# --- Environment & Secrets ---
 .env
 .env.local
 .env.*.local
 
-# IDE
+# --- IDE ---
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# OS
+# --- OS ---
 .DS_Store
 Thumbs.db
 
-# Output (scraper results, not source)
+# --- Output (scraper results, not source) ---
 output/
 
-# AWS
+# --- AWS ---
 .aws-sam/
 samconfig.toml
+
+# --- Kiro（保留 steering 與 hooks，忽略暫存）---
+.kiro/settings/
+.kiro/cache/
+
+# --- 臨時檔案 ---
+*.log
+*.tmp
