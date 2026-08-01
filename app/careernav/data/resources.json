@@ -1,0 +1,278 @@
+[
+  {
+    "id": "unemployment_benefit",
+    "name": "失業給付",
+    "category": "津貼",
+    "recipient": "勞工",
+    "description": "非自願離職且就業保險年資合計滿一年以上者，可按月請領離職前六個月平均月投保薪資 60% 之失業給付；離職時已滿 45 歲或領有身心障礙證明者，最長可領 9 個月。",
+    "eligibility": {
+      "min_age": 15,
+      "max_age": 65,
+      "target_groups": ["中高齡", "一般"],
+      "requires_involuntary_leave": true,
+      "min_insurance_months": 12,
+      "requires_active_job_search": true,
+      "other_conditions": "離職辦理退保當日前三年內，就業保險年資合計滿一年以上；向公立就業服務機構辦理求職登記，自登記之日起 14 日內仍無法推介就業或安排職業訓練"
+    },
+    "benefit": {
+      "base": {
+        "amount_type": "formula",
+        "formula": "avg_insured_salary * 0.6",
+        "formula_description": "離職辦理退保之當月起前六個月平均月投保薪資的 60%",
+        "frequency": "monthly",
+        "max_months": 6
+      },
+      "conditional_tiers": [
+        {
+          "condition": "離職辦理退保時已年滿 45 歲",
+          "condition_field": "age >= 45",
+          "override": { "max_months": 9 }
+        },
+        {
+          "condition": "領有社政主管機關核發之身心障礙證明",
+          "condition_field": "has_disability_cert == true",
+          "override": { "max_months": 9 }
+        }
+      ],
+      "surcharges": [
+        {
+          "description": "受扶養眷屬加給（無工作收入之父母、配偶、未成年子女或身心障礙子女）",
+          "rate_per_unit": "avg_insured_salary * 0.1",
+          "max_rate": "avg_insured_salary * 0.2",
+          "unit": "受扶養眷屬人數"
+        }
+      ]
+    },
+    "concurrency_rules": [
+      {
+        "conflicting_resource_id": "training_living_allowance",
+        "rule_description": "請領失業給付期間不得同時請領職業訓練生活津貼",
+        "law_reference": "就業保險法 第 19 條、就業促進津貼實施辦法 第 26 條第 3 項"
+      }
+    ],
+    "required_documents": [
+      "國民身分證或有效證照正反面",
+      "非自願離職證明書（或定期契約屆滿證明）",
+      "勞工保險（就業保險）被保險人投保資料表",
+      "本人名義之國內金融機構存摺封面影本",
+      "身心障礙證明（如適用 45 歲以下延長請領）",
+      "受扶養眷屬相關證明（如申請加給）"
+    ],
+    "law_references": [
+      { "law_name": "就業保險法", "article_no": "第 11 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021" },
+      { "law_name": "就業保險法", "article_no": "第 16 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021" },
+      { "law_name": "就業保險法", "article_no": "第 19-1 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021" }
+    ],
+    "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021",
+    "last_verified": "2026-08-01",
+    "notes": "二年內領滿給付期間者，需再等二年才能再次請領，且以原給付期間之二分之一為限。本專案情境 A（58歲工廠作業員因自動化被資遣）適用 45 歲以上 9 個月上限。"
+  },
+  {
+    "id": "training_living_allowance",
+    "name": "職業訓練生活津貼",
+    "category": "津貼",
+    "recipient": "勞工",
+    "description": "非自願離職且經公立就業服務機構安排參加全日制職業訓練者，於受訓期間按月發給訓練生活津貼，是中高齡「技能轉銜」的核心工具；不得與失業給付同時請領。",
+    "eligibility": {
+      "min_age": 15,
+      "target_groups": ["中高齡", "一般", "身心障礙"],
+      "requires_involuntary_leave": true,
+      "requires_fulltime_training": true,
+      "other_conditions": "向公立就業服務機構辦理求職登記，經安排參加全日制職業訓練（訓練期間 1 個月以上、每週 4 日以上、每日 4 小時以上、每月總訓練時數 100 小時以上）"
+    },
+    "benefit": {
+      "base": {
+        "amount_type": "formula",
+        "formula": "avg_insured_salary * 0.6",
+        "formula_description": "受訓期間每月按離職辦理退保之當月起前六個月平均月投保薪資的 60%（就業保險身分）",
+        "frequency": "monthly",
+        "max_months": 6
+      },
+      "conditional_tiers": [
+        {
+          "condition": "申請人為身心障礙者",
+          "condition_field": "has_disability_cert == true",
+          "override": { "max_months": 12 }
+        },
+        {
+          "condition": "非就業保險身分（依就業促進津貼實施辦法請領，而非就業保險法）",
+          "condition_field": "insurance_status == 'non_ei'",
+          "override": {
+            "amount_type": "formula",
+            "formula": "min_wage * 0.6",
+            "formula_description": "改按當年度最低工資的 60% 計算，而非平均投保薪資",
+            "max_months": 6
+          }
+        }
+      ]
+    },
+    "concurrency_rules": [
+      {
+        "conflicting_resource_id": "unemployment_benefit",
+        "rule_description": "請領失業給付期間不得同時請領職業訓練生活津貼；非就業保險身分者與其他政府同性質津貼二年內合併領取上限 6 個月（身障者 1 年）",
+        "law_reference": "就業保險法 第 19 條、就業促進津貼實施辦法 第 26 條"
+      }
+    ],
+    "required_documents": [
+      "國民身分證或有效證照正反面",
+      "非自願離職證明書",
+      "職業訓練機構開立之受訓證明或錄訓通知",
+      "本人名義之國內金融機構存摺封面影本",
+      "身心障礙證明（如適用延長至 1 年）"
+    ],
+    "law_references": [
+      { "law_name": "就業保險法", "article_no": "第 19 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021" },
+      { "law_name": "就業保險法", "article_no": "第 19-1 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021" },
+      { "law_name": "就業促進津貼實施辦法", "article_no": "第 18 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0090025" },
+      { "law_name": "就業促進津貼實施辦法", "article_no": "第 20 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0090025" },
+      { "law_name": "就業促進津貼實施辦法", "article_no": "第 26 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0090025" }
+    ],
+    "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021",
+    "last_verified": "2026-08-01",
+    "notes": "舊版資料曾錯誤描述為「可與失業給付併行申請」，已修正為法規明訂之不得併領。這是情境 A 的核心：與其領完失業給付才轉職訓，直接安排全日制職訓可提前建立第二技能。"
+  },
+  {
+    "id": "early_reemployment_bonus",
+    "name": "提早就業獎助津貼",
+    "category": "獎勵",
+    "recipient": "勞工",
+    "description": "符合失業給付請領條件者，若在給付期限屆滿前就找到工作並穩定就業滿 3 個月，可一次領取尚未請領失業給付金額的 50% 作為獎勵，鼓勵提早重返職場而非把給付領好領滿。",
+    "eligibility": {
+      "min_age": 15,
+      "target_groups": ["中高齡", "一般"],
+      "requires_involuntary_leave": true,
+      "other_conditions": "須符合失業給付請領條件，於失業給付請領期限屆滿前受僱工作，並依規定參加就業保險滿 3 個月以上"
+    },
+    "benefit": {
+      "base": {
+        "amount_type": "formula",
+        "formula": "remaining_unemployment_benefit * 0.5",
+        "formula_description": "尚未請領之失業給付金額的 50%，一次發給",
+        "frequency": "one_time",
+        "max_months": 0
+      }
+    },
+    "concurrency_rules": [
+      {
+        "conflicting_resource_id": "unemployment_benefit",
+        "rule_description": "合併原已領取之失業給付月數及本津貼，以原失業給付所定給付期間為限",
+        "law_reference": "就業保險法 第 16 條第 4 項、第 18 條"
+      }
+    ],
+    "required_documents": [
+      "提早就業獎助津貼申請書",
+      "就業保險被保險人投保資料表（新工作）",
+      "本人名義之國內金融機構存摺封面影本"
+    ],
+    "law_references": [
+      { "law_name": "就業保險法", "article_no": "第 18 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021" }
+    ],
+    "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050021",
+    "last_verified": "2026-08-01",
+    "notes": "對情境 A 的角色：如果轉職訓練後提早找到新工作，這筆錢等於「把沒領完的失業給付換成獎金」，可在 roadmap 中作為積極求職的激勵點。"
+  },
+  {
+    "id": "relocation_transport_subsidy",
+    "name": "異地就業交通補助金",
+    "category": "補助",
+    "recipient": "勞工",
+    "description": "經公立就業服務機構推介或安排職業訓練後，就業地點與原日常居住處所距離達 30 公里以上者，可按距離按月請領交通補助，最長 12 個月，是「跨區轉職」的關饅支持。",
+    "eligibility": {
+      "target_groups": ["中高齡", "一般"],
+      "requires_active_job_search": true,
+      "other_conditions": "就業地點與原日常居住處所距離 30 公里以上；經公立就業服務機構推介就業或安排職業訓練"
+    },
+    "benefit": {
+      "base": {
+        "amount_type": "range",
+        "min_amount": 1000,
+        "max_amount": 3000,
+        "formula_description": "依距離分級：30~50公里 1,000元／月；50~70公里 2,000元／月；70公里以上 3,000元／月",
+        "frequency": "monthly",
+        "max_months": 12
+      }
+    },
+    "concurrency_rules": [],
+    "required_documents": [
+      "異地就業交通補助金申請書",
+      "公立就業服務機構推介證明或職業訓練錄訓證明",
+      "受僱證明或在職證明",
+      "戶籍地與就業地距離證明（可由公立就服機構認定）"
+    ],
+    "law_references": [
+      { "law_name": "就業保險促進就業實施辦法", "article_no": "第 28 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050025" }
+    ],
+    "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050025",
+    "last_verified": "2026-08-01",
+    "notes": "情境 A：若工廠所在地無同類職缺，轉職訓練後可能需跨區就業，此補助降低通勤成本負擔。"
+  },
+  {
+    "id": "relocation_moving_subsidy",
+    "name": "搬遷補助金",
+    "category": "補助",
+    "recipient": "勞工",
+    "description": "因異地就業需搬遷戶籍或居住地者，可核實請領搬遷費用補助，最高 3 萬元。",
+    "eligibility": {
+      "target_groups": ["中高齡", "一般"],
+      "requires_active_job_search": true,
+      "other_conditions": "因就業導致確有搬遷之事實與需要，經公立就業服務機構推介就業或安排職業訓練"
+    },
+    "benefit": {
+      "base": {
+        "amount_type": "range",
+        "max_amount": 30000,
+        "formula_description": "依搬遷費用收據所列總額核實發給，最高 3 萬元",
+        "frequency": "one_time",
+        "max_months": 0
+      }
+    },
+    "concurrency_rules": [],
+    "required_documents": [
+      "搬遷補助金申請書",
+      "搬遷費用收據",
+      "公立就業服務機構推介證明或職業訓練錄訓證明",
+      "新舊戶籍地或居住地證明"
+    ],
+    "law_references": [
+      { "law_name": "就業保險促進就業實施辦法", "article_no": "第 31 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050025" }
+    ],
+    "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050025",
+    "last_verified": "2026-08-01",
+    "notes": "與 relocation_transport_subsidy、relocation_rent_subsidy 同屬「異地就業」三補助，法規原文合併在同一節，適用情境相同。"
+  },
+  {
+    "id": "relocation_rent_subsidy",
+    "name": "租屋補助金",
+    "category": "補助",
+    "recipient": "勞工",
+    "description": "因異地就業而在就業地租屋者，可按租金 60% 核實請領租屋補助，每月最高 5,000 元，最長 12 個月。",
+    "eligibility": {
+      "target_groups": ["中高齡", "一般"],
+      "requires_active_job_search": true,
+      "other_conditions": "於就業地租賃房屋，並自就業且租賃契約所載租賃日起計算；經公立就業服務機構推介就業或安排職業訓練"
+    },
+    "benefit": {
+      "base": {
+        "amount_type": "formula",
+        "formula": "monthly_rent * 0.6",
+        "formula_description": "房屋租賃契約所列租金總額的 60%，每月最高 5,000 元",
+        "max_amount": 5000,
+        "frequency": "monthly",
+        "max_months": 12
+      }
+    },
+    "concurrency_rules": [],
+    "required_documents": [
+      "租屋補助金申請書",
+      "房屋租賃契約書",
+      "租金支付證明",
+      "公立就業服務機構推介證明或職業訓練錄訓證明"
+    ],
+    "law_references": [
+      { "law_name": "就業保險促進就業實施辦法", "article_no": "第 34 條", "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050025" }
+    ],
+    "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050025",
+    "last_verified": "2026-08-01",
+    "notes": "情境 A：若跨區就業但選擇租屋而非搬遷戶籍，適用此項而非 relocation_moving_subsidy；兩者依實際狀況擇一或不互斥（法規未設併領限制）。"
+  }
+]
