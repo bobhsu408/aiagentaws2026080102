@@ -46,9 +46,13 @@ output/
 .aws-sam/
 samconfig.toml
 
-# --- Kiro（保留 steering 與 hooks，忽略暫存）---
-.kiro/settings/
-.kiro/cache/
+# --- Kiro ---
+# 比賽規定：專案根目錄必須包含 /.kiro 資料夾以展示 steering / specs / hooks
+# 的使用情況，且「不得將 /.kiro 資料夾或其子資料夾加入 .gitignore」。
+# 因此這裡刻意不忽略 .kiro 底下任何路徑。
+#
+# 注意：若日後新增 .kiro/settings/mcp.json，裡面可能含 API 金鑰（如 Exa），
+# 提交前務必確認金鑰是以環境變數帶入，而非硬編碼在設定檔中。
 
 # --- AgentCore CLI 本機狀態 / 生成產物 ---
 agentcore/.cli/
