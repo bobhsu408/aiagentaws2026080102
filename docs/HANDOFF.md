@@ -1,13 +1,30 @@
 # 職涯導航家（CareerNav）— 專案交接文件
 
-> 最後更新：2026-08-02（Task 7 施工中，完成步驟 1~5，步驟 6 進行中）
+> ⚠️ **本檔案的「Task 7 進度」章節已過期（寫於步驟 6 進行中的暫停點）。**
+> **Task 7 已於 2026-08-02 全部完成。要接手維護請先讀 → [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md)**
+>
+> 本檔案保留作為 Task 1～6 的歷史脈絡與決策紀錄，仍有參考價值
+> （尤其第四節部署路徑限制、第五節已解決問題），但「目前狀態」一律以
+> `CURRENT_STATUS.md` 為準。
+
+> 最後更新：2026-08-02（Task 7 施工中，完成步驟 1~5，步驟 6 進行中）← 已過期，見上方
 > 用途：讓新 session 直接依正式計畫接續，不重做、不跳步、不用重讀大量歷史文件
 
 ## 新 session 的第一句指令
 
-請直接使用：
+**維護既有功能**：先讀 `docs/CURRENT_STATUS.md`，該檔含線上資源清單、
+架構圖、維護指令、雷區清單。
+
+**接續未完成的 Task 8～9**：
+
+> 請依 `docs/IMPLEMENTATION_PLAN_20250731.md` 接續 Task 8。目前狀態見 `docs/CURRENT_STATUS.md`，Task 1~7 均已完成，不需重做。
+
+<details>
+<summary>（已過期）原本的 Task 7 接續指令</summary>
 
 > 請接續 Task 7（Lambda Proxy + 前端接入），依 `docs/IMPLEMENTATION_PLAN_20250731.md` 第七節「七、施工順序」逐項執行。目前進度見本檔案第一之一節，直接從「下一步」開始，不需要重新確認已定案的視覺/狀態機/時間軸規格。
+
+</details>
 
 ## 一、正式進度與下一步
 
@@ -20,13 +37,27 @@
 | Task 3：實作六步驟 Career Tools | **已完成**，報告：`docs/reports/TASK_3_REPORT.md`，commit：`81886fb` |
 | Task 4：Agent 主程式與 System Prompt | **副產品已完成**，見下方「Task 3 順帶完成的部分」，尚無獨立報告 |
 | Task 5：MCP Client 整合（Exa AI） | **已完成**，報告：`docs/reports/TASK_5_REPORT.md` |
-| Task 6：CDK 基礎設施完善 + AgentCore 部署 | **已完成**（AgentCore Runtime 部分），報告：`docs/reports/TASK_6_REPORT.md`。`infra/`（Lambda+S3）**尚未 `cdk deploy`**（已 `cdk synth` 驗證過範本，留給 Task 7 步驟 8 一併部署） |
-| Task 7：Lambda Proxy + 前端接入 | **進行中**，見下方「一之一、Task 7 詳細進度」 |
+| Task 6：CDK 基礎設施完善 + AgentCore 部署 | **已完成**，報告：`docs/reports/TASK_6_REPORT.md`。`infra/` 已於 Task 7 步驟 8 實際 `cdk deploy` 完成（Lambda + 私有 S3 + CloudFront） |
+| Task 7：Lambda Proxy + 前端接入 | **已完成**（十步驟全部），報告：`docs/reports/TASK_7_REPORT.md`。**下方「一之一」章節為施工中的舊快照，已過期，現況見 `docs/CURRENT_STATUS.md`** |
+| 語音輸入（額外項目，非計畫內） | 已完成（另一 session），報告：`docs/reports/VOICE_INPUT_REPORT.md` |
 | Task 8～Task 9 | 尚未依正式計畫完成 |
 
 Runtime 已於 Task 7 步驟 1 重新部署，**線上程式碼含 Task 7 對 `main.py` 的新改動**（攔截 `generate_roadmap` 工具結果並額外轉發），已用 boto3 直接呼叫 + `agentcore invoke` 實測正常。
 
-## 一之一、Task 7 詳細進度（施工順序十步驟，2026-08-02 暫停點）
+## ~~一之一、Task 7 詳細進度~~（⚠️ 已過期的舊快照，勿依此施工）
+
+> **這一節寫於 Task 7 步驟 6 進行中的暫停點，內容已不反映現況。**
+> Task 7 十個步驟已全部完成，且最終架構與這裡描述的不同
+> （例如：Function URL 不再是 `AuthType.NONE`、前端不再打 Function URL 而是
+> 打同源 `/chat`、逐字打字機已改為逐區塊淡入）。
+>
+> **現況請看 [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md)，
+> 技術決策理由看 [`docs/reports/TASK_7_REPORT.md`](reports/TASK_7_REPORT.md)。**
+>
+> 以下內容僅保留作為「當時如何解決 SSE 抓不到工具結果」的技術紀錄，
+> 那部分（`main.py` 攔截 `ToolResultMessageEvent`）至今仍有效。
+
+### （以下為舊快照）Task 7 詳細進度（施工順序十步驟，2026-08-02 暫停點）
 
 **已完成（步驟 1~5）：**
 
