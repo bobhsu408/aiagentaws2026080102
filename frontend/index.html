@@ -130,6 +130,19 @@
         }
         .waiting-label { margin-left: 0.4em; }
 
+        /* 分步驟進度：已完成的步驟降低透明度，進行中的加粗 + 前置箭頭 */
+        #waiting-steps {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+        .wstep { opacity: 0.35; }
+        .wstep.done { opacity: 0.6; }
+        .wstep.active { opacity: 1; font-weight: bold; }
+        .wstep.active::before { content: "▸ "; }
+        .wstep.done::before { content: "✓ "; }
+        .wstep:not(.done):not(.active)::before { content: "　"; }
+
         /* ------------------------------------------------------------
            錯誤畫面
            ------------------------------------------------------------ */
@@ -295,6 +308,20 @@
         /* ------------------------------------------------------------
            規劃圖通知卡（對話串內）＋ 專屬規劃圖畫面
            ------------------------------------------------------------ */
+        /* 敘述不足時的「用選單快速填答」提示卡：比規劃圖通知卡低調，
+           用虛線框表示這是建議而非結果 */
+        .quickfill-card {
+            border: 1px dashed #ffffff;
+            padding: 0.8rem 1rem;
+            margin: 0.6rem 0 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: mdFadeIn 0.35s ease both;
+        }
+        .quickfill-text { flex: 1; font-size: 0.9rem; line-height: 1.5; }
+        .quickfill-btn { flex: 0 0 auto; font-size: 0.9rem; }
+
         .roadmap-notice {
             border: 2px solid #ffffff;
             padding: 1rem 1.2rem;
@@ -562,9 +589,13 @@
     <div id="chat-screen" class="screen">
         <div id="messages"></div>
 
+        <!-- 等待指示器：跑馬燈 + 分步驟進度文字。
+             Agent 一輪需 8~19 秒（LLM 推理與工具往返），只顯示「等待中」
+             會讓人覺得很久；標示正在進行的步驟能明顯降低等待感。 -->
         <div id="waiting-indicator" style="display: none;">
             <span class="marquee-dot"></span><span class="marquee-dot"></span><span class="marquee-dot"></span>
-            <span class="waiting-label">等待中</span>
+            <span class="waiting-label" id="waiting-label">等待中</span>
+            <div id="waiting-steps"></div>
         </div>
 
         <div id="error-screen" style="display: none;">
@@ -1121,6 +1152,7 @@
                     { label: "已退休", value: "退休" },
                     { label: "還在職，但想轉職", value: "在職" },
                 ],
+                other: { placeholder: "請描述您的離職狀況" },
                 toText: (v) => (v === "非自願"
                     ? "我是被公司資遣（非自願離職）"
                     : v === "在職" ? "我目前還在職，但想轉職" : `我的離職原因是${v}`),
@@ -1167,6 +1199,7 @@
                     { label: "2 人", value: 2 },
                     { label: "3 人以上", value: 3 },
                 ],
+                other: { placeholder: "請輸入人數，例如 4", numeric: true },
                 toText: (v) => (v === 0 ? "沒有受扶養眷屬" : `有 ${v} 位受扶養眷屬`),
             },
             {
@@ -1177,7 +1210,12 @@
                     { label: "沒有", value: false },
                     { label: "有", value: true },
                 ],
-                toText: (v) => (v ? "我持有身心障礙證明" : "我沒有身心障礙證明"),
+                other: { placeholder: "請說明您的情況（例如正在申請中）" },
+                // 自填時 v 是字串（非 boolean），需分開處理，
+                // 否則任何非空字串都會被當成 true 而誤判為「持有證明」。
+                toText: (v) => (typeof v === "string"
+                    ? `身心障礙證明狀況：${v}`
+                    : v ? "我持有身心障礙證明" : "我沒有身心障礙證明"),
             },
             {
                 id: "training_willing",
@@ -1188,6 +1226,7 @@
                     { label: "還在考慮", value: "考慮中" },
                     { label: "不想，希望盡快就業", value: "不願意" },
                 ],
+                other: { placeholder: "請說明您的考量" },
                 toText: (v) => `對於參加全日制職業訓練，我的想法是「${v}」`,
             },
             {
@@ -1332,12 +1371,12 @@
             const phase2Retry =
                 "系統仍未收到時間軸資料。請直接呼叫 generate_roadmap 工具一次，不要只用文字回覆。";
 
-            const r1 = await sendMessage(phase1);
+            const r1 = await sendMessage(phase1, "phase1");
             if (!r1) return;
 
-            const r2 = await sendMessage(phase2);
+            const r2 = await sendMessage(phase2, "phase2");
             if (r2 && !r2.roadmap) {
-                await sendMessage(phase2Retry);
+                await sendMessage(phase2Retry, "phase2");
             }
         }
 
@@ -1350,6 +1389,93 @@
         // guardrail 封鎖匿名 Function URL。OAC 對 POST 需要呼叫端自行計算
         // body 的 SHA256 並帶 x-amz-content-sha256 header；改用 GET 就沒有
         // body，CloudFront 能自行完成整個簽名，瀏覽器端零簽名邏輯。
+        // ============================================================
+        // 等待進度（降低等待感）
+        // ============================================================
+        // Agent 一輪需 8~19 秒，時間幾乎都花在 LLM 推理與工具往返上，
+        // 無法從前端縮短。因此改善「感受到的等待」：依這一輪預期會跑的
+        // 步驟逐項推進，讓使用者看得到進展。
+        //
+        // 注意：步驟推進是依實測平均耗時估算的節奏，不是後端的真實回報
+        // （目前 Lambda 是 buffered 回應，拿不到中間事件）。因此最後一個
+        // 步驟會停在 active 直到真的收到回覆，不會假裝已完成。
+        const WAIT_STEPS = {
+            phase1: ["解析您的背景資料", "比對符合資格的補助方案", "試算可領金額與期間"],
+            phase2: ["產生 1~6 個月行動計畫", "彙整應備文件清單"],
+            chat: ["思考中"],
+        };
+
+        let waitStepHandles = [];
+
+        function startWaitingSteps(kind) {
+            const steps = WAIT_STEPS[kind] || WAIT_STEPS.chat;
+            const box = document.getElementById("waiting-steps");
+            box.innerHTML = "";
+            steps.forEach((text, i) => {
+                const el = document.createElement("div");
+                el.className = "wstep" + (i === 0 ? " active" : "");
+                el.textContent = text;
+                box.appendChild(el);
+            });
+
+            // 依步驟數把預估時間切段推進；最後一步不自動標記完成。
+            const perStep = Math.max(2500, Math.floor(6000 / steps.length));
+            stopWaitingSteps();
+            for (let i = 1; i < steps.length; i++) {
+                waitStepHandles.push(setTimeout(() => {
+                    const els = box.querySelectorAll(".wstep");
+                    for (let j = 0; j < i; j++) els[j].className = "wstep done";
+                    els[i].className = "wstep active";
+                }, perStep * i));
+            }
+        }
+
+        function stopWaitingSteps() {
+            waitStepHandles.forEach(clearTimeout);
+            waitStepHandles = [];
+        }
+
+        // ============================================================
+        // 敘述完整度判斷
+        // ============================================================
+        // 自由對話時若使用者只講了很少的資訊（例如「我失業了」），
+        // 缺年齡／離職原因／就保年資就無法判斷資格，Agent 會來回追問，
+        // 拖慢節奏。這時主動提供選單讓使用者一次填完。
+        const KEY_INFO_PATTERNS = [
+            /\d{1,2}\s*歲|年齡/,                          // 年齡
+            /資遣|裁員|關廠|歇業|非自願|自願離職|離職|失業|轉職|育嬰/, // 離職原因
+            /投保|就保|年資|保了|加保/,                     // 就業保險年資
+        ];
+
+        function isSparseDescription(text) {
+            const t = (text || "").trim();
+            if (t.length < 12) return true;
+            const hits = KEY_INFO_PATTERNS.filter((re) => re.test(t)).length;
+            return hits < 2; // 三類關鍵資訊中命中不到兩類，視為敘述不足
+        }
+
+        // 在對話串插入「用選單快速填答」的提示卡
+        function appendQuickFillCard() {
+            const messages = document.getElementById("messages");
+            const card = document.createElement("div");
+            card.className = "quickfill-card";
+
+            const text = document.createElement("div");
+            text.className = "quickfill-text";
+            text.textContent = "想更快得到精準試算嗎？用選單填幾題就能直接產出金額與行動計畫。";
+            card.appendChild(text);
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "quickfill-btn";
+            btn.textContent = "開啟快速評估選單";
+            btn.addEventListener("click", openWizard);
+            card.appendChild(btn);
+
+            messages.appendChild(card);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
         // 成功時回傳後端 data 物件（含 reply / roadmap），失敗回傳 null。
         // runWizardFlow 依此判斷是否續送下一段、以及是否需要補要 roadmap。
         // requestInFlight 是併發鎖：同一個 session_id 若同時有兩個請求打進
@@ -1357,7 +1483,8 @@
         // （已實測）。因此任一請求進行中就拒絕新的送出。
         let requestInFlight = false;
 
-        async function sendMessage(text) {
+        // stepKind：這一輪要顯示哪組等待步驟（phase1 / phase2 / chat）
+        async function sendMessage(text, stepKind) {
             if (requestInFlight) return null;
             requestInFlight = true;
             // 送出前一定關掉麥克風：避免等待回覆時還在錄音、聆聽動畫還在跑
@@ -1366,6 +1493,7 @@
             lastUserMessage = text;
             appendMessage("user", text);
             setState("waiting");
+            startWaitingSteps(stepKind || "chat");
 
             waitTimeoutHandle = setTimeout(() => {
                 showError("等待超過 60 秒，請重新發送");
@@ -1411,6 +1539,7 @@
                 return null;
             } finally {
                 requestInFlight = false;
+                stopWaitingSteps();
             }
         }
 
@@ -1938,12 +2067,22 @@
             }
         });
 
-        document.getElementById("send-btn").addEventListener("click", () => {
+        // 自由對話送出：若使用者敘述的關鍵資訊不足（缺年齡／離職原因／
+        // 就保年資），回覆後主動提供選單，避免 Agent 來回追問拖慢節奏。
+        // 每個對話只提示一次，不重複騷擾。
+        let quickFillOffered = false;
+
+        document.getElementById("send-btn").addEventListener("click", async () => {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
             if (!text) return;
             input.value = "";
-            sendMessage(text);
+            const sparse = isSparseDescription(text);
+            const result = await sendMessage(text);
+            if (result && sparse && !quickFillOffered) {
+                quickFillOffered = true;
+                appendQuickFillCard();
+            }
         });
 
         // 麥克風：點一下開始聆聽，再點一下結束（鍵盤 Enter/Space 亦可，因為是 button）
