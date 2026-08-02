@@ -159,8 +159,7 @@
             align-items: flex-start;
             overflow-x: auto;
             padding: 1rem 0.2rem;
-            opacity: 0;
-            animation: roadmapFadeIn 0.4s ease forwards;
+            animation: roadmapFadeIn 0.4s ease both;
         }
 
         @keyframes roadmapFadeIn {
@@ -244,6 +243,99 @@
             font-size: 0.85rem;
             border-top: 1px dashed #ffffff;
             padding-top: 0.5rem;
+        }
+
+        /* ------------------------------------------------------------
+           Agent 回覆的 Markdown 排版
+           Agent 會用 ## 標題、**粗體**、清單、--- 分隔線，
+           這裡壓縮預設邊界，讓對話氣泡不會因為 h2/p/ul 的
+           預設 margin 而過度鬆散。
+           ------------------------------------------------------------ */
+        /* 不設 opacity: 0 當基礎狀態：萬一動畫被停用或未執行（無障礙設定、
+           不同瀏覽器、截圖工具），內容仍應可見。淡入只由 keyframes 的
+           from 負責，配合 both 讓動畫前後都套用對應狀態。 */
+        .md-block {
+            animation: mdFadeIn 0.25s ease both;
+        }
+        @keyframes mdFadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .bubble h2, .bubble h3, .bubble h4, .bubble h5 {
+            margin: 0.7em 0 0.35em;
+            line-height: 1.35;
+        }
+        .bubble h2 { font-size: 1.15rem; }
+        .bubble h3 { font-size: 1.05rem; }
+        .bubble h4, .bubble h5 { font-size: 1rem; }
+
+        .bubble p { margin: 0.35em 0; line-height: 1.6; }
+        .bubble ul, .bubble ol { margin: 0.35em 0; padding-left: 1.5em; }
+        .bubble li { margin: 0.2em 0; line-height: 1.55; }
+
+        .bubble hr {
+            border: none;
+            border-top: 1px solid #ffffff;
+            opacity: 0.4;
+            margin: 0.7em 0;
+        }
+
+        .bubble code {
+            border: 1px solid #ffffff;
+            padding: 0 0.3em;
+            font-size: 0.9em;
+        }
+
+        .bubble a { color: #ffffff; }
+
+        /* Markdown 渲染後由區塊元素自行處理換行，不需要 pre-wrap */
+        .msg.agent .bubble { white-space: normal; }
+
+        /* ------------------------------------------------------------
+           規劃圖通知卡（對話串內）＋ 專屬規劃圖畫面
+           ------------------------------------------------------------ */
+        .roadmap-notice {
+            border: 2px solid #ffffff;
+            padding: 1rem 1.2rem;
+            margin: 0.8rem 0 0.4rem;
+            animation: mdFadeIn 0.35s ease both;
+        }
+        .roadmap-notice-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+        }
+        .roadmap-notice-meta {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-bottom: 0.8rem;
+        }
+        /* 用閃爍外框把視線引導到這顆按鈕（demo 時要一眼看到） */
+        .roadmap-notice-btn {
+            animation: noticeBlink 1.4s step-start infinite;
+        }
+        @keyframes noticeBlink {
+            50% { border-color: rgba(255, 255, 255, 0.35); }
+        }
+
+        #roadmap-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.6rem;
+        }
+        #roadmap-heading { font-size: 1.6rem; margin: 0; }
+
+        #roadmap-view {
+            border: 2px solid #ffffff;
+            padding: 1rem;
+            min-height: 340px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .md-block, .roadmap-notice { animation: none; opacity: 1; }
+            .roadmap-notice-btn { animation: none; }
         }
 
         /* ------------------------------------------------------------
@@ -483,12 +575,42 @@
             </div>
         </div>
 
+        <!-- 語音狀態列：聆聽中的波形動畫 + 狀態文字（aria-live 讓螢幕閱讀器讀出） -->
+        <div id="voice-status" role="status" aria-live="polite">
+            <span class="voice-bars" aria-hidden="true">
+                <span class="voice-bar"></span><span class="voice-bar"></span><span class="voice-bar"></span><span class="voice-bar"></span><span class="voice-bar"></span>
+            </span>
+            <span class="voice-label" id="voice-label"></span>
+        </div>
         <div id="input-bar">
             <input id="message-input" type="text" placeholder="輸入訊息..." autocomplete="off">
+            <button id="mic-btn" type="button" aria-label="語音輸入" aria-pressed="false" title="語音輸入（點一下開始，再點一下結束）">
+                <!-- 像素風麥克風：純矩形堆疊，fill=currentColor 以跟隨按鈕文字色，hover 反白時自動變黑 -->
+                <svg class="mic-icon" width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" focusable="false">
+                    <rect x="5" y="0" width="4" height="9" fill="currentColor" />
+                    <rect x="2" y="6" width="2" height="3" fill="currentColor" />
+                    <rect x="10" y="6" width="2" height="3" fill="currentColor" />
+                    <rect x="2" y="9" width="10" height="2" fill="currentColor" />
+                    <rect x="6" y="11" width="2" height="4" fill="currentColor" />
+                    <rect x="3" y="15" width="8" height="2" fill="currentColor" />
+                </svg>
+            </button>
             <button id="send-btn" type="button">送出</button>
             <button id="wizard-open-btn" type="button">快速評估</button>
             <button id="reset-btn-2" type="button">重新開始</button>
         </div>
+    </div>
+
+    <!-- ============================================================
+         專屬規劃圖畫面：由對話串的「點擊瀏覽規劃圖」進入，
+         全寬呈現橫式時間軸，可返回對話繼續詢問。
+         ============================================================ -->
+    <div id="roadmap-screen" class="screen">
+        <div id="roadmap-header">
+            <h1 id="roadmap-heading">您的轉職行動計畫</h1>
+            <button id="roadmap-back-btn" type="button">返回對話</button>
+        </div>
+        <div id="roadmap-view"></div>
     </div>
 
     <!-- ============================================================
@@ -526,7 +648,12 @@
         const API_ENDPOINT = "/chat";
         const WAIT_TIMEOUT_MS = 60000; // 第五節規格：等待超過 60 秒視為逾時
         const BOOT_FLAG_KEY = "cn_booted"; // sessionStorage：開場動畫只播一次
-        const TYPE_INTERVAL_MS = 25; // 第四節規格：逐字打字機效果，每字 20~30ms
+        // 回覆呈現節奏（取代原本逐字打字機，理由見 revealBlocks 註解）：
+        // 以 Markdown 區塊為單位淡入，總時長上限 REVEAL_TOTAL_MS，
+        // 讓長回覆也能在約 1.2 秒內全部出現，符合 live demo 的節奏需求。
+        const REVEAL_STEP_MS = 70;      // 區塊間隔的理想值
+        const REVEAL_MIN_STEP_MS = 12;  // 區塊很多時的最小間隔
+        const REVEAL_TOTAL_MS = 1200;   // 整段回覆呈現的總時長上限
 
         // ============================================================
         // 時間軸連結對照表（第六節：不讓 Lambda 動態查詢，直接打包精簡版
@@ -592,11 +719,16 @@
 
             if (state === "home") {
                 document.getElementById("home-screen").classList.add("active");
+            } else if (state === "roadmap") {
+                // 專屬規劃圖畫面：全寬呈現時間軸，可返回對話
+                document.getElementById("roadmap-screen").classList.add("active");
             } else if (state === "chat" || state === "waiting" || state === "error") {
                 document.getElementById("chat-screen").classList.add("active");
                 document.getElementById("waiting-indicator").style.display = state === "waiting" ? "block" : "none";
                 document.getElementById("error-screen").style.display = state === "error" ? "block" : "none";
                 document.getElementById("input-bar").style.display = state === "chat" ? "flex" : "none";
+                // 離開可輸入狀態時收掉語音狀態列，避免波形殘留在等待/錯誤畫面
+                if (state !== "chat") setVoiceStatus("");
             }
         }
 
@@ -627,6 +759,8 @@
         function resetConversation() {
             sessionId = null;
             lastUserMessage = "";
+            stopListening();
+            setVoiceStatus("");
             document.getElementById("messages").innerHTML = "";
             document.getElementById("message-input").value = "";
             // 明確移除 play-intro：避免 display:none -> block 切換時
@@ -657,26 +791,128 @@
             return bubble;
         }
 
-        // 逐字把 text 插入 bubble.textContent，完成後 resolve。
-        // 只用在 Agent 回覆；使用者訊息維持立即顯示（見 appendMessage）。
-        function typeText(bubble, text, intervalMs) {
+        // ------------------------------------------------------------
+        // Markdown 渲染
+        // ------------------------------------------------------------
+        // Agent 回覆是 Markdown（## 標題、**粗體**、- 清單、--- 分隔線），
+        // 直接用 textContent 會把符號原樣印出來。這裡做一個最小可用的
+        // 渲染器，只支援 Agent 實際會用到的語法。
+        //
+        // 安全性：先把 HTML 特殊字元轉義（escapeHtml），之後才套用
+        // Markdown 規則，因此即使回覆內容含 HTML 也不會被當成標籤執行。
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function renderInline(text) {
+            return text
+                // **粗體**
+                .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+                // `程式碼`
+                .replace(/`([^`]+)`/g, "<code>$1</code>")
+                // [文字](網址)：只允許 http/https，避免 javascript: 之類的 scheme
+                .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+                    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        }
+
+        // 把 Markdown 切成一個個「區塊元素」，供 revealBlocks 逐塊淡入。
+        function markdownToBlocks(text) {
+            const lines = escapeHtml(text || "").split("\n");
+            const blocks = [];
+            let listBuffer = [];
+            let listType = null;
+
+            const flushList = () => {
+                if (!listBuffer.length) return;
+                const tag = listType === "ol" ? "ol" : "ul";
+                blocks.push("<" + tag + ">" + listBuffer.join("") + "</" + tag + ">");
+                listBuffer = [];
+                listType = null;
+            };
+
+            for (const raw of lines) {
+                const line = raw.trimEnd();
+
+                // 分隔線
+                if (/^\s*---+\s*$/.test(line)) {
+                    flushList();
+                    blocks.push("<hr>");
+                    continue;
+                }
+                // 標題 # ~ ####
+                const h = line.match(/^\s*(#{1,4})\s+(.*)$/);
+                if (h) {
+                    flushList();
+                    // Agent 慣用 ## 當主標題，因此 ## → h2（# 也併入 h2），
+                    // ### → h3、#### → h4；不產生 h1 以免與頁面標題層級衝突。
+                    const level = Math.min(Math.max(h[1].length, 2), 5);
+                    blocks.push("<h" + level + ">" + renderInline(h[2]) + "</h" + level + ">");
+                    continue;
+                }
+                // 有序清單 1. 2. 3.
+                const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+                if (ol) {
+                    if (listType && listType !== "ol") flushList();
+                    listType = "ol";
+                    listBuffer.push("<li>" + renderInline(ol[1]) + "</li>");
+                    continue;
+                }
+                // 無序清單 - 或 *（含縮排的子項，一律拉平為同層，維持版面簡潔）
+                const ul = line.match(/^\s*[-*]\s+(.*)$/);
+                if (ul) {
+                    if (listType && listType !== "ul") flushList();
+                    listType = "ul";
+                    listBuffer.push("<li>" + renderInline(ul[1]) + "</li>");
+                    continue;
+                }
+                // 空行：結束清單
+                if (line.trim() === "") {
+                    flushList();
+                    continue;
+                }
+                // 一般段落
+                flushList();
+                blocks.push("<p>" + renderInline(line) + "</p>");
+            }
+            flushList();
+            return blocks;
+        }
+
+        // 逐「區塊」淡入，取代原本的逐字打字機。
+        // 為什麼改掉逐字：實測 Agent 回覆常達 1200+ 字，以每字 25ms 計要跑
+        // 30 秒以上，live demo 無法等待；且逐字是操作 textContent，無法呈現
+        // Markdown 格式。改為逐塊淡入後既保留「內容逐步出現」的節奏感，
+        // 總時長又能控制在 REVEAL_TOTAL_MS 以內。
+        function revealBlocks(bubble, text) {
             return new Promise((resolve) => {
-                const chars = Array.from(text || "");
-                if (chars.length === 0) {
+                const blocks = markdownToBlocks(text);
+                if (!blocks.length) {
                     resolve();
                     return;
                 }
-                let i = 0;
                 const messages = document.getElementById("messages");
+                // 總時長固定：區塊多時自動加快，確保 demo 不會等太久
+                const step = Math.max(
+                    REVEAL_MIN_STEP_MS,
+                    Math.min(REVEAL_STEP_MS, REVEAL_TOTAL_MS / blocks.length)
+                );
+                let i = 0;
                 const timer = setInterval(() => {
-                    bubble.textContent += chars[i];
+                    const el = document.createElement("div");
+                    el.className = "md-block";
+                    el.innerHTML = blocks[i];
+                    bubble.appendChild(el);
                     i++;
                     messages.scrollTop = messages.scrollHeight;
-                    if (i >= chars.length) {
+                    if (i >= blocks.length) {
                         clearInterval(timer);
                         resolve();
                     }
-                }, intervalMs);
+                }, step);
             });
         }
 
@@ -793,6 +1029,53 @@
             }
 
             return container;
+        }
+
+        // 最近一次收到的 roadmap，供「點擊瀏覽規劃圖」開啟專屬畫面使用。
+        let latestRoadmap = null;
+
+        // 收到 roadmap 時不直接把時間軸塞進對話串，而是先出一張醒目的通知卡，
+        // 由使用者點擊後切換到專屬的規劃圖畫面（demo 流程：自述 → 問答 →
+        // 「已生成規劃圖，請點擊瀏覽」→ 全畫面時間軸）。
+        // 這樣做的好處：對話串不會被大圖擠壓，且時間軸有完整寬度可呈現。
+        function appendRoadmapNotice(roadmap) {
+            latestRoadmap = roadmap;
+            const messages = document.getElementById("messages");
+            const card = document.createElement("div");
+            card.className = "roadmap-notice";
+
+            const title = document.createElement("div");
+            title.className = "roadmap-notice-title";
+            title.textContent = "✓ 已為您生成專屬轉職規劃圖";
+            card.appendChild(title);
+
+            const meta = document.createElement("div");
+            meta.className = "roadmap-notice-meta";
+            const nodeCount = (roadmap.timeline || []).length;
+            meta.textContent =
+                "共 " + (roadmap.total_months || 6) + " 個月、" + nodeCount + " 個階段" +
+                ((roadmap.decision_points || []).length
+                    ? "，含 " + roadmap.decision_points.length + " 個關鍵決策點"
+                    : "");
+            card.appendChild(meta);
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "roadmap-notice-btn";
+            btn.textContent = "點擊瀏覽規劃圖";
+            btn.addEventListener("click", () => openRoadmapScreen(roadmap));
+            card.appendChild(btn);
+
+            messages.appendChild(card);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // 切換到專屬規劃圖畫面（全寬呈現橫式時間軸）
+        function openRoadmapScreen(roadmap) {
+            const container = document.getElementById("roadmap-view");
+            container.innerHTML = "";
+            container.appendChild(buildRoadmapElement(roadmap || latestRoadmap));
+            setState("roadmap");
         }
 
         function appendRoadmap(roadmap) {
@@ -1030,17 +1313,31 @@
 
             const phase1 =
                 profileText +
-                "\n\n請依序執行 analyze_profile、match_resources、calculate_benefit，" +
-                "告訴我符合哪些補助、每項可領多少、共可領多少，並附上法規條號。" +
-                "請用精簡條列呈現，不要重複問我已提供的資訊。";
+                "\n\n請依序執行 analyze_profile、match_resources、calculate_benefit。" +
+                "回覆請控制在 350 字以內：只列出我可以領的方案名稱、每月金額、" +
+                "可領期間與總額，各方案一行，並附法規條號。" +
+                "不要重複我已提供的資訊，不要列出發給雇主的獎助。";
 
+            // 第 2 段刻意寫得很強硬：實測模型會「聲稱已經執行過」卻沒有真的
+            // 呼叫工具，導致前端拿不到 roadmap 資料而畫不出時間軸。因此明確
+            // 要求「實際呼叫工具」並說明這是系統繪圖所需。
             const phase2 =
-                "請接著執行 generate_roadmap 與 get_checklist，" +
-                "產出我的 1~6 個月行動計畫時間軸與應備文件清單。回覆請精簡。";
+                "現在請務必實際呼叫 generate_roadmap 工具與 get_checklist 工具" +
+                "（系統需要工具回傳的結構化資料才能繪製時間軸圖，只用文字描述無法繪圖）。" +
+                "呼叫完成後，回覆請控制在 150 字以內：只用兩三句話說明計畫重點與" +
+                "最關鍵的決策點，並提醒我點擊下方按鈕瀏覽規劃圖。" +
+                "不要在文字中重複列出整份時間軸與文件清單。";
 
-            const ok = await sendMessage(phase1);
-            if (ok) {
-                await sendMessage(phase2);
+            // 若第 2 段仍沒拿到 roadmap，再補一次更直接的指令（最多一次）。
+            const phase2Retry =
+                "系統仍未收到時間軸資料。請直接呼叫 generate_roadmap 工具一次，不要只用文字回覆。";
+
+            const r1 = await sendMessage(phase1);
+            if (!r1) return;
+
+            const r2 = await sendMessage(phase2);
+            if (r2 && !r2.roadmap) {
+                await sendMessage(phase2Retry);
             }
         }
 
@@ -1053,15 +1350,19 @@
         // guardrail 封鎖匿名 Function URL。OAC 對 POST 需要呼叫端自行計算
         // body 的 SHA256 並帶 x-amz-content-sha256 header；改用 GET 就沒有
         // body，CloudFront 能自行完成整個簽名，瀏覽器端零簽名邏輯。
-        // 回傳 true 表示這輪成功（供 runWizardFlow 決定是否續送第二段）。
+        // 成功時回傳後端 data 物件（含 reply / roadmap），失敗回傳 null。
+        // runWizardFlow 依此判斷是否續送下一段、以及是否需要補要 roadmap。
         // requestInFlight 是併發鎖：同一個 session_id 若同時有兩個請求打進
         // AgentCore，會共用同一個 Agent 實例與對話歷史而導致回應為空
         // （已實測）。因此任一請求進行中就拒絕新的送出。
         let requestInFlight = false;
 
         async function sendMessage(text) {
-            if (requestInFlight) return false;
+            if (requestInFlight) return null;
             requestInFlight = true;
+            // 送出前一定關掉麥克風：避免等待回覆時還在錄音、聆聽動畫還在跑
+            stopListening();
+            setVoiceStatus("");
             lastUserMessage = text;
             appendMessage("user", text);
             setState("waiting");
@@ -1090,7 +1391,7 @@
                         // 回應不是 JSON，忽略細節，仍以 HTTP 狀態碼提示錯誤
                     }
                     showError("發生錯誤（" + resp.status + "）" + (detail ? "：" + detail : ""));
-                    return false;
+                    return null;
                 }
 
                 const data = await resp.json();
@@ -1098,16 +1399,16 @@
 
                 setState("chat");
                 const bubble = appendMessage("agent", "");
-                await typeText(bubble, data.reply || "（沒有收到回覆內容）", TYPE_INTERVAL_MS);
+                await revealBlocks(bubble, data.reply || "（沒有收到回覆內容）");
                 // 規格：若這輪有 roadmap 資料，文字顯示完後才淡入時間軸卡片。
                 if (data.roadmap) {
-                    appendRoadmap(data.roadmap);
+                    appendRoadmapNotice(data.roadmap);
                 }
-                return true;
+                return data;
             } catch (err) {
                 clearTimeout(waitTimeoutHandle);
                 showError("無法連上伺服器，請檢查網路連線後重新發送");
-                return false;
+                return null;
             } finally {
                 requestInFlight = false;
             }
@@ -1127,28 +1428,44 @@
         }
 
         // ============================================================
-        // 語音輸入（Web Speech API）
+        // 語音輸入（Amazon Transcribe Streaming）
         // ============================================================
-        // 兩層設計，確保 demo 當天不論在哪台機器都有東西可看：
-        //   1. 支援 SpeechRecognition 的瀏覽器（Chrome / Edge / 新版 Safari）
-        //      → 真的辨識，interim 結果即時回填輸入框。
-        //   2. 不支援、或使用者拒絕麥克風權限、或用 file:// 開啟（非安全來源）
-        //      → 降級為「示範動畫」：一樣播聆聽中波形約 2.6 秒，
-        //        結束後在狀態列說明原因，請使用者改用文字輸入。
-        // 注意：Chrome 的 webkitSpeechRecognition 需要 HTTPS（或 localhost）
-        // 才會給麥克風權限，走 CloudFront 網址即符合；本機 file:// 會落到
-        // 第 2 層降級路徑。
-        const VOICE_LANG = "zh-TW";
-        const VOICE_DEMO_MS = 2600; // 降級模式的動畫時長
-        // 設為 true 可在辨識完成後自動送出（真正免手打的 demo）；
+        // 用 Amazon Transcribe Streaming 做即時中文（zh-TW）語音辨識：
+        //   1. 前端向 /chat?action=voice_url 要一條 presigned WebSocket URL
+        //      （由 Lambda 用執行角色代簽，瀏覽器不持有任何 AWS 憑證）
+        //   2. getUserMedia 取麥克風 → AudioContext 轉 16kHz 單聲道 PCM
+        //   3. 以 AWS event stream 格式把音訊送進 WebSocket
+        //   4. 收回 partial / final 逐字稿，即時回填輸入框
+        //
+        // 不用瀏覽器內建的 Web Speech API，原因：那是把音訊送到 Google 的
+        // 服務，非 Google Chrome 的 Chromium / Brave / Electron 會直接回
+        // network 錯誤，且不在我們的 AWS 架構內。
+        //
+        // 任何一步失敗（不支援、拒絕權限、非 HTTPS、簽章過期、連線失敗）
+        // 都會退回「示範模式」：聆聽動畫照播完，再顯示原因並請使用者改用
+        // 文字輸入。動畫是保底的 demo 價值，不會被錯誤訊息瞬間打斷。
+        const VOICE_SAMPLE_RATE = 16000;   // Transcribe 要求與 URL 參數一致
+        const VOICE_CHUNK_SAMPLES = 4096;  // 約 256ms/包
+        // 聆聽動畫保底時長：引擎再快失敗，動畫也會播完這段時間才收。
+        const VOICE_MIN_LISTEN_MS = 2600;
+        // 保險：最長連續聆聽時間，避免忘記關麥克風一直錄
+        const VOICE_MAX_LISTEN_MS = 30000;
+        // 設為 true 可在辨識結束後自動送出（真正免手打的 demo）；
         // 預設 false，讓使用者先確認辨識文字再按送出，避免誤送。
         const VOICE_AUTO_SEND = false;
 
-        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = null;
-        let isListening = false;
-        let voiceDemoHandle = null;
-        let voiceBaseText = ""; // 開始聆聽前輸入框已有的文字，辨識結果接在後面
+        let isListening = false;        // 聆聽中（含動畫保底時間，不代表引擎還在跑）
+        let listenStartedAt = 0;        // 本次聆聽起始時間，用來算保底剩餘時間
+        let voiceHoldHandle = null;     // 保底時間的收尾 timer
+        let maxListenHandle = null;     // 最長聆聽時間的 timer
+        let pendingVoiceMessage = null; // 等動畫播完才顯示的訊息
+        let voiceServiceBroken = false; // 語音服務確認不可用 → 之後直接走示範模式
+        let voiceBaseText = "";         // 開始聆聽前輸入框已有的文字，辨識結果接在後面
+        let voiceFinalText = "";        // 本次已定稿（IsPartial=false）的逐字稿
+        let voiceSocket = null;
+        let voiceStream = null;         // MediaStream，結束時要逐一 stop track
+        let voiceAudioCtx = null;
+        let voiceNodes = null;          // { source, processor, mute }
 
         function setVoiceStatus(text, opts) {
             const showBars = !!(opts && opts.bars);
@@ -1172,132 +1489,420 @@
             }
         }
 
-        // 降級示範模式：只播動畫，不做辨識。
-        function startVoiceDemo(reason) {
-            if (isListening) return;
-            isListening = true;
-            setListeningUI(true, "聆聽中…（示範動畫）");
-            voiceDemoHandle = setTimeout(() => {
-                voiceDemoHandle = null;
-                isListening = false;
-                setListeningUI(false);
-                setVoiceStatus(reason, { bars: false });
-            }, VOICE_DEMO_MS);
+        // 把麥克風按鈕標成示範模式（虛線框 + 提示文字）
+        function markMicDemoOnly() {
+            const micBtn = document.getElementById("mic-btn");
+            micBtn.classList.add("demo-only");
+            micBtn.title = "語音輸入（此環境僅示範動畫，請改用文字輸入）";
+            micBtn.setAttribute("aria-label", "語音輸入（此環境僅示範動畫）");
         }
 
-        function createRecognition() {
-            const rec = new SpeechRecognitionCtor();
-            rec.lang = VOICE_LANG;
-            rec.interimResults = true; // 邊說邊回填，讓 demo 看得到即時反應
-            rec.continuous = false;    // 說完一段自動結束，避免忘記關麥克風
-            rec.maxAlternatives = 1;
+        // 開始聆聽：不論走真實辨識或示範模式，動畫都由這裡起算。
+        function beginListening(label) {
+            isListening = true;
+            listenStartedAt = Date.now();
+            pendingVoiceMessage = null;
+            if (voiceHoldHandle) {
+                clearTimeout(voiceHoldHandle);
+                voiceHoldHandle = null;
+            }
+            setListeningUI(true, label);
+        }
 
-            rec.addEventListener("start", () => {
-                isListening = true;
-                setListeningUI(true);
-            });
+        // 預約收尾：等動畫保底時間到才收動畫並顯示訊息。
+        // 引擎在保底時間內就結束（成功或失敗）時，動畫會繼續播到時間到，
+        // 使用者看到的是一段完整的「聆聽中」動畫，而不是閃一下就跳錯誤。
+        function scheduleListeningFinish(message) {
+            if (!isListening) {
+                if (message) setVoiceStatus(message, { bars: false });
+                return;
+            }
+            // 已排定收尾時只更新訊息，不重設倒數（避免動畫被無限延長）
+            pendingVoiceMessage = message || pendingVoiceMessage || "";
+            if (voiceHoldHandle) return;
 
-            rec.addEventListener("result", (event) => {
-                let interim = "";
-                let final = "";
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const chunk = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        final += chunk;
-                    } else {
-                        interim += chunk;
-                    }
-                }
-                const input = document.getElementById("message-input");
-                if (final) {
-                    voiceBaseText = (voiceBaseText + final).trim();
-                    input.value = voiceBaseText;
-                } else {
-                    input.value = (voiceBaseText + interim).trim();
-                }
-            });
-
-            rec.addEventListener("error", (event) => {
-                // 權限類錯誤直接降級並說明；其他錯誤給可行動的提示。
-                const messages = {
-                    "not-allowed": "麥克風權限被拒，請在瀏覽器網址列的權限設定允許麥克風，或改用文字輸入",
-                    "service-not-allowed": "此環境不允許語音服務（需 HTTPS 網址），請改用文字輸入",
-                    "no-speech": "沒有偵測到語音，請再試一次",
-                    "audio-capture": "找不到可用的麥克風裝置",
-                    "network": "語音辨識服務連線失敗，請改用文字輸入",
-                    "aborted": "",
-                };
-                const msg = event.error in messages
-                    ? messages[event.error]
-                    : "語音辨識發生問題（" + event.error + "），請改用文字輸入";
-                if (msg) setVoiceStatus(msg, { bars: false });
-            });
-
-            rec.addEventListener("end", () => {
+            const remain = Math.max(0, VOICE_MIN_LISTEN_MS - (Date.now() - listenStartedAt));
+            voiceHoldHandle = setTimeout(() => {
+                voiceHoldHandle = null;
                 isListening = false;
                 setListeningUI(false);
+                setVoiceStatus(pendingVoiceMessage || "", { bars: false });
+                pendingVoiceMessage = null;
+
                 const input = document.getElementById("message-input");
                 const text = input.value.trim();
-                // 狀態列已有錯誤訊息時不要覆蓋（error 事件先於 end 觸發）
-                const label = document.getElementById("voice-label").textContent;
-                if (!label) {
-                    setVoiceStatus(text ? "已完成辨識，可修改後送出" : "", { bars: false });
-                }
                 if (VOICE_AUTO_SEND && text) {
                     input.value = "";
                     setVoiceStatus("");
                     sendMessage(text);
                 }
+            }, remain);
+        }
+
+        // 純示範模式：只播動畫、不做辨識。
+        function startVoiceDemo(reason) {
+            if (isListening) return;
+            beginListening("聆聽中…（示範模式）");
+            scheduleListeningFinish(reason);
+        }
+
+        // ---------- AWS event stream 編解碼 ----------
+        // Transcribe streaming 的 WebSocket 走 AWS event stream 二進位格式：
+        //   [總長度 4B][headers 長度 4B][prelude CRC32 4B][headers][payload][訊息 CRC32 4B]
+        // header 格式：[名稱長度 1B][名稱][型別 1B(7=字串)][值長度 2B][值]
+        const CRC32_TABLE = (() => {
+            const table = new Uint32Array(256);
+            for (let i = 0; i < 256; i++) {
+                let c = i;
+                for (let k = 0; k < 8; k++) {
+                    c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+                }
+                table[i] = c >>> 0;
+            }
+            return table;
+        })();
+
+        function crc32(bytes) {
+            let crc = 0xffffffff;
+            for (let i = 0; i < bytes.length; i++) {
+                crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+            }
+            return (crc ^ 0xffffffff) >>> 0;
+        }
+
+        function encodeAudioEvent(pcmBytes) {
+            const headers = [
+                [":message-type", "event"],
+                [":event-type", "AudioEvent"],
+                [":content-type", "application/octet-stream"],
+            ];
+            const encoder = new TextEncoder();
+
+            let headersLength = 0;
+            const encodedHeaders = headers.map(([name, value]) => {
+                const n = encoder.encode(name);
+                const v = encoder.encode(value);
+                headersLength += 1 + n.length + 1 + 2 + v.length;
+                return [n, v];
             });
 
-            return rec;
+            const totalLength = 16 + headersLength + pcmBytes.length;
+            const buffer = new Uint8Array(totalLength);
+            const view = new DataView(buffer.buffer);
+
+            view.setUint32(0, totalLength);
+            view.setUint32(4, headersLength);
+            view.setUint32(8, crc32(buffer.subarray(0, 8)));
+
+            let pos = 12;
+            encodedHeaders.forEach(([n, v]) => {
+                buffer[pos++] = n.length;
+                buffer.set(n, pos);
+                pos += n.length;
+                buffer[pos++] = 7; // 7 = 字串型別
+                view.setUint16(pos, v.length);
+                pos += 2;
+                buffer.set(v, pos);
+                pos += v.length;
+            });
+
+            buffer.set(pcmBytes, pos);
+            view.setUint32(totalLength - 4, crc32(buffer.subarray(0, totalLength - 4)));
+            return buffer;
         }
 
-        function startListening() {
+        function decodeEventStreamMessage(arrayBuffer) {
+            const bytes = new Uint8Array(arrayBuffer);
+            const view = new DataView(arrayBuffer);
+            const totalLength = view.getUint32(0);
+            const headersLength = view.getUint32(4);
+
+            const headers = {};
+            const decoder = new TextDecoder("utf-8");
+            let pos = 12;
+            const headersEnd = 12 + headersLength;
+            while (pos < headersEnd) {
+                const nameLength = bytes[pos++];
+                const name = decoder.decode(bytes.subarray(pos, pos + nameLength));
+                pos += nameLength;
+                const valueType = bytes[pos++];
+                if (valueType !== 7) break; // 這裡只會收到字串型別 header
+                const valueLength = view.getUint16(pos);
+                pos += 2;
+                headers[name] = decoder.decode(bytes.subarray(pos, pos + valueLength));
+                pos += valueLength;
+            }
+
+            const payload = decoder.decode(bytes.subarray(headersEnd, totalLength - 4));
+            return { headers, payload };
+        }
+
+        // Float32（-1~1）轉 16-bit 小端 PCM
+        function floatToPcm16(input) {
+            const out = new Uint8Array(input.length * 2);
+            const view = new DataView(out.buffer);
+            for (let i = 0; i < input.length; i++) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+            }
+            return out;
+        }
+
+        // ---------- 麥克風 → WebSocket 音訊管線 ----------
+        function startAudioPipeline() {
+            // 指定 sampleRate 讓瀏覽器直接幫我們重取樣到 16kHz，
+            // 省掉自己寫 resampler。
+            voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: VOICE_SAMPLE_RATE,
+            });
+            const source = voiceAudioCtx.createMediaStreamSource(voiceStream);
+            const processor = voiceAudioCtx.createScriptProcessor(VOICE_CHUNK_SAMPLES, 1, 1);
+            // ScriptProcessor 必須連到 destination 才會被驅動，
+            // 但中間插一個 gain=0 的節點，避免麥克風聲音回放造成回音。
+            const mute = voiceAudioCtx.createGain();
+            mute.gain.value = 0;
+
+            processor.onaudioprocess = (e) => {
+                if (!voiceSocket || voiceSocket.readyState !== WebSocket.OPEN) return;
+                const pcm = floatToPcm16(e.inputBuffer.getChannelData(0));
+                try {
+                    voiceSocket.send(encodeAudioEvent(pcm));
+                } catch (err) {
+                    // 連線已關閉，忽略這包
+                }
+            };
+
+            source.connect(processor);
+            processor.connect(mute);
+            mute.connect(voiceAudioCtx.destination);
+            voiceNodes = { source, processor, mute };
+        }
+
+        function teardownAudioPipeline() {
+            if (voiceNodes) {
+                try {
+                    voiceNodes.processor.onaudioprocess = null;
+                    voiceNodes.source.disconnect();
+                    voiceNodes.processor.disconnect();
+                    voiceNodes.mute.disconnect();
+                } catch (err) {
+                    // 已斷開就忽略
+                }
+                voiceNodes = null;
+            }
+            if (voiceAudioCtx) {
+                try {
+                    voiceAudioCtx.close();
+                } catch (err) {
+                    // 已關閉就忽略
+                }
+                voiceAudioCtx = null;
+            }
+            if (voiceStream) {
+                voiceStream.getTracks().forEach((track) => track.stop());
+                voiceStream = null;
+            }
+        }
+
+        // 送一個空的 AudioEvent 告訴 Transcribe「音訊結束」，
+        // 它會回最後一段 final 結果後關閉連線。
+        function closeVoiceSocket(graceful) {
+            if (!voiceSocket) return;
+            const socket = voiceSocket;
+            voiceSocket = null;
+            try {
+                if (graceful && socket.readyState === WebSocket.OPEN) {
+                    socket.send(encodeAudioEvent(new Uint8Array(0)));
+                    setTimeout(() => {
+                        try { socket.close(); } catch (err) { /* 已關閉 */ }
+                    }, 800);
+                } else {
+                    socket.onmessage = null;
+                    socket.close();
+                }
+            } catch (err) {
+                // 關閉失敗不影響流程
+            }
+        }
+
+        function handleTranscriptMessage(event) {
+            let decoded;
+            try {
+                decoded = decodeEventStreamMessage(event.data);
+            } catch (err) {
+                return;
+            }
+
+            // 伺服器端例外（簽章過期、參數錯誤等）
+            if (decoded.headers[":message-type"] === "exception") {
+                voiceServiceBroken = true;
+                markMicDemoOnly();
+                scheduleListeningFinish("語音服務回報錯誤，已切換示範模式，請改用文字輸入");
+                teardownAudioPipeline();
+                closeVoiceSocket(false);
+                return;
+            }
+
+            let body;
+            try {
+                body = JSON.parse(decoded.payload);
+            } catch (err) {
+                return;
+            }
+
+            const results = (body.Transcript && body.Transcript.Results) || [];
+            let partial = "";
+            results.forEach((result) => {
+                const alt = (result.Alternatives || [])[0];
+                if (!alt) return;
+                if (result.IsPartial) {
+                    partial += alt.Transcript || "";
+                } else {
+                    voiceFinalText += alt.Transcript || "";
+                }
+            });
+
+            const input = document.getElementById("message-input");
+            input.value = (voiceBaseText + voiceFinalText + partial).trim();
+        }
+
+        async function startListening() {
             if (isListening) return;
-            if (!SpeechRecognitionCtor) {
-                startVoiceDemo("此瀏覽器不支援語音辨識（建議 Chrome / Edge），請改用文字輸入");
+
+            const canCapture = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+                && window.isSecureContext && typeof WebSocket !== "undefined";
+            if (!canCapture) {
+                startVoiceDemo("此環境無法取用麥克風（需 HTTPS 網址與較新的瀏覽器），請改用文字輸入");
                 return;
             }
-            if (!window.isSecureContext) {
-                // http:// 或 file:// 開啟時瀏覽器不會給麥克風權限，直接走降級
-                startVoiceDemo("語音輸入需要 HTTPS 網址，請改用文字輸入");
+            if (voiceServiceBroken) {
+                startVoiceDemo("此環境的語音服務連不上，僅示範動畫，請改用文字輸入");
                 return;
             }
-            setVoiceStatus("");
+
+            // 先起動畫：後面要取麥克風權限、要拿簽章 URL，都有延遲，
+            // 動畫先跑使用者才知道系統有反應。
+            voiceFinalText = "";
             voiceBaseText = document.getElementById("message-input").value.trim();
             if (voiceBaseText) voiceBaseText += " ";
+            beginListening("啟動語音辨識…");
+
             try {
-                recognition = recognition || createRecognition();
-                recognition.start();
+                voiceStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                    },
+                });
             } catch (err) {
-                // 例如上一次辨識尚未完全結束就再次 start()
-                isListening = false;
-                setListeningUI(false);
-                setVoiceStatus("語音輸入啟動失敗，請稍候再試或改用文字輸入", { bars: false });
+                const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
+                scheduleListeningFinish(denied
+                    ? "麥克風權限被拒，請在瀏覽器網址列允許麥克風，或改用文字輸入"
+                    : "找不到可用的麥克風，請改用文字輸入");
+                return;
             }
+
+            let voiceUrl;
+            try {
+                const resp = await fetch(API_ENDPOINT + "?action=voice_url", { method: "GET" });
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                const data = await resp.json();
+                if (!data.url) throw new Error("no url in response");
+                voiceUrl = data.url;
+            } catch (err) {
+                teardownAudioPipeline();
+                voiceServiceBroken = true;
+                markMicDemoOnly();
+                scheduleListeningFinish("無法取得語音服務授權，已切換示範模式，請改用文字輸入");
+                return;
+            }
+
+            // 使用者可能在等待期間又點了一次麥克風取消
+            if (!isListening) {
+                teardownAudioPipeline();
+                return;
+            }
+
+            try {
+                voiceSocket = new WebSocket(voiceUrl);
+                voiceSocket.binaryType = "arraybuffer";
+            } catch (err) {
+                teardownAudioPipeline();
+                scheduleListeningFinish("語音連線建立失敗，請改用文字輸入");
+                return;
+            }
+
+            voiceSocket.addEventListener("open", () => {
+                setVoiceStatus("聆聽中…（再點一次麥克風結束）", { bars: true });
+                startAudioPipeline();
+                // 保險：最長錄 VOICE_MAX_LISTEN_MS，避免一直開著
+                maxListenHandle = setTimeout(() => {
+                    maxListenHandle = null;
+                    finishVoiceCapture();
+                }, VOICE_MAX_LISTEN_MS);
+            });
+
+            voiceSocket.addEventListener("message", handleTranscriptMessage);
+
+            voiceSocket.addEventListener("error", () => {
+                teardownAudioPipeline();
+                voiceServiceBroken = true;
+                markMicDemoOnly();
+                scheduleListeningFinish("語音服務連線失敗，已切換示範模式，請改用文字輸入");
+            });
+
+            voiceSocket.addEventListener("close", () => {
+                teardownAudioPipeline();
+                if (maxListenHandle) {
+                    clearTimeout(maxListenHandle);
+                    maxListenHandle = null;
+                }
+                const text = document.getElementById("message-input").value.trim();
+                const msg = pendingVoiceMessage
+                    ? pendingVoiceMessage
+                    : (text ? "已完成辨識，可修改後送出" : "沒有聽到語音，請再試一次");
+                scheduleListeningFinish(msg);
+            });
         }
 
+        // 收音結束（使用者再點一次麥克風、或到最長時間）：
+        // 音訊管線先停，WebSocket 用 graceful 方式關以取回最後一段 final。
+        function finishVoiceCapture() {
+            teardownAudioPipeline();
+            closeVoiceSocket(true);
+            const text = document.getElementById("message-input").value.trim();
+            scheduleListeningFinish(text ? "已完成辨識，可修改後送出" : "");
+        }
+
+        // 使用者主動結束（送出訊息、重新開始、離開對話畫面）：
+        // 立即收動畫，不套用保底時長。
         function stopListening() {
-            if (voiceDemoHandle) {
-                clearTimeout(voiceDemoHandle);
-                voiceDemoHandle = null;
+            if (voiceHoldHandle) {
+                clearTimeout(voiceHoldHandle);
+                voiceHoldHandle = null;
             }
-            if (recognition && isListening) {
-                try {
-                    recognition.stop();
-                } catch (err) {
-                    // 已經停止就忽略
-                }
+            if (maxListenHandle) {
+                clearTimeout(maxListenHandle);
+                maxListenHandle = null;
             }
+            pendingVoiceMessage = null;
+            teardownAudioPipeline();
+            closeVoiceSocket(false);
             isListening = false;
             setListeningUI(false);
         }
 
         function toggleListening() {
             if (isListening) {
-                stopListening();
-                setVoiceStatus("");
+                // 有連線時走 graceful 收尾（還能拿到最後一段辨識結果），
+                // 沒連線（示範模式或還在啟動中）就直接停。
+                if (voiceSocket) {
+                    finishVoiceCapture();
+                } else {
+                    stopListening();
+                    setVoiceStatus("");
+                }
             } else {
                 startListening();
             }
@@ -1319,6 +1924,7 @@
             runWizardFlow(DEMO_PRESET);
         });
 
+        document.getElementById("roadmap-back-btn").addEventListener("click", () => setState("chat"));
         document.getElementById("wizard-open-btn").addEventListener("click", openWizard);
         document.getElementById("wizard-cancel").addEventListener("click", closeWizard);
         document.getElementById("wizard-other-confirm").addEventListener("click", submitWizardOther);
@@ -1356,6 +1962,14 @@
         // ============================================================
         // 開場
         // ============================================================
+        // 語音能力偵測：不支援 / 非安全來源時把麥克風按鈕標成虛線框（示範模式），
+        // 點下去仍會播聆聽動畫，只是不做真實辨識。
+        (function initVoiceCapability() {
+            const canCapture = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+                && window.isSecureContext && typeof WebSocket !== "undefined";
+            if (!canCapture) markMicDemoOnly();
+        })();
+
         enterHomeScreen();
     </script>
 </body>

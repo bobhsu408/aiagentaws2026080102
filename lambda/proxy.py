@@ -26,6 +26,8 @@ import os
 import uuid
 
 import boto3
+from botocore.auth import SigV4QueryAuth
+from botocore.awsrequest import AWSRequest
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -36,6 +38,14 @@ logger.setLevel(logging.INFO)
 # 讓 Lambda 有餘裕在逾時前組好錯誤回應回給前端，而不是被硬中斷。
 _READ_TIMEOUT_SECONDS = 75
 _MIN_SESSION_ID_LEN = 33  # AgentCore runtimeSessionId 最短長度限制
+
+# ---- 語音輸入（Amazon Transcribe Streaming）----------------------------------
+# 前端不能持有 AWS 憑證，所以由本 Lambda 用自己的執行角色代簽一條有效期
+# 5 分鐘的 WebSocket URL 給瀏覽器，瀏覽器再直接連 Transcribe（不經
+# CloudFront，WebSocket 沒有 CORS 限制）。
+_VOICE_LANGUAGE_CODE = "zh-TW"
+_VOICE_SAMPLE_RATE = 16000
+_VOICE_URL_EXPIRES_SECONDS = 300
 
 
 def handler(event: dict, context) -> dict:
@@ -64,6 +74,10 @@ def handler(event: dict, context) -> dict:
     # 不需做任何簽名或雜湊運算。詳見 docs/reports/TASK_7_REPORT.md。
     if method == "GET":
         params = event.get("queryStringParameters") or {}
+        # 語音輸入：回傳 Transcribe Streaming 的 presigned WebSocket URL。
+        # 沿用同一條 /chat behavior，不必再開一個 CloudFront behavior。
+        if params.get("action") == "voice_url":
+            return _voice_url_response()
         user_message = params.get("q", "")
         session_id = _normalize_session_id(params.get("session_id"))
     else:
@@ -128,6 +142,50 @@ def handler(event: dict, context) -> dict:
         "reply": reply_text,
         "session_id": session_id,
         "roadmap": roadmap,
+    })
+
+
+def _voice_url_response() -> dict:
+    """產生 Amazon Transcribe Streaming 的 presigned WebSocket URL。
+
+    瀏覽器拿到這條 URL 後直接連 wss://transcribestreaming...:8443，
+    以 event stream 格式送 16kHz PCM，收回 partial / final 逐字稿。
+    簽章由本 Lambda 的執行角色產生，所需權限為
+    transcribe:StartStreamTranscriptionWebSocket（見 infra/lib/stack.ts）。
+
+    Returns:
+        Lambda proxy 回應物件，body 含 url / sample_rate / language_code。
+    """
+    region = os.environ.get("AWS_REGION_NAME", "us-west-2")
+    host = f"transcribestreaming.{region}.amazonaws.com:8443"
+    url = (
+        f"https://{host}/stream-transcription-websocket"
+        f"?language-code={_VOICE_LANGUAGE_CODE}"
+        f"&media-encoding=pcm"
+        f"&sample-rate={_VOICE_SAMPLE_RATE}"
+    )
+
+    try:
+        credentials = boto3.Session().get_credentials()
+        if credentials is None:
+            raise RuntimeError("no credentials available in Lambda runtime")
+        request = AWSRequest(method="GET", url=url)
+        SigV4QueryAuth(
+            credentials.get_frozen_credentials(),
+            "transcribe",
+            region,
+            expires=_VOICE_URL_EXPIRES_SECONDS,
+        ).add_auth(request)
+        signed_url = request.url.replace("https://", "wss://", 1)
+    except Exception as e:
+        logger.exception("Failed to presign Transcribe streaming URL")
+        return _response(500, {"error": "無法取得語音服務授權", "details": str(e)})
+
+    return _response(200, {
+        "url": signed_url,
+        "language_code": _VOICE_LANGUAGE_CODE,
+        "sample_rate": _VOICE_SAMPLE_RATE,
+        "expires_in": _VOICE_URL_EXPIRES_SECONDS,
     })
 
 

@@ -76,6 +76,17 @@ export class CareerNavStack extends cdk.Stack {
       })
     );
 
+    // 語音輸入：Lambda 代簽 Transcribe Streaming 的 WebSocket URL。
+    // presigned URL 的權限等同簽章者，所以這條權限給 Lambda 角色即可，
+    // 瀏覽器端不需要任何 AWS 憑證。
+    // Transcribe streaming 沒有資源層級 ARN，只能用 "*"。
+    agentRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["transcribe:StartStreamTranscriptionWebSocket"],
+        resources: ["*"],
+      })
+    );
+
     // CloudWatch Logs
     agentRole.addToPolicy(
       new iam.PolicyStatement({
