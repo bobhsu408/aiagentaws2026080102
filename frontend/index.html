@@ -804,7 +804,9 @@
         // chat / waiting / error 共用 #chat-screen 容器，用內部子元素
         // 的 display 切換，不算獨立 screen（跟第五節狀態機圖對應）。
         let currentState = "home";
-        let lastUserMessage = ""; // 供「重新發送」使用
+        let lastUserMessage = ""; // 供「重新發送」使用（實際送給後端的文字）
+        let lastDisplayMessage = ""; // 供「重新發送」使用（氣泡顯示用文字，可能與上者不同）
+        let lastStepKind = "chat"; // 供「重新發送」使用（等待步驟種類）
         let sessionId = null;
         let waitTimeoutHandle = null;
 
@@ -854,6 +856,8 @@
         function resetConversation() {
             sessionId = null;
             lastUserMessage = "";
+            lastDisplayMessage = "";
+            lastStepKind = "chat";
             stopListening();
             setVoiceStatus("");
             document.getElementById("messages").innerHTML = "";
@@ -1531,12 +1535,17 @@
             const phase2Retry =
                 "系統仍未收到時間軸資料。請直接呼叫 generate_roadmap 工具一次，不要只用文字回覆。";
 
-            const r1 = await sendMessage(phase1, "phase1");
+            // 氣泡只顯示自然語言自述，後面給模型的工具呼叫/字數限制指令
+            // 不對使用者顯示（那是系統操作細節，不是使用者會講的話）。
+            const r1 = await sendMessage(phase1, "phase1", profileText);
             if (!r1) return;
 
-            const r2 = await sendMessage(phase2, "phase2");
+            // 第 2 段對使用者而言就是「請幫我規劃時間軸與文件清單」，
+            // 用一句自然語言取代真正送給模型的強硬指令。
+            const phase2Display = "麻煩幫我規劃時間軸與應備文件清單。";
+            const r2 = await sendMessage(phase2, "phase2", phase2Display);
             if (r2 && !r2.roadmap) {
-                await sendMessage(phase2Retry, "phase2");
+                await sendMessage(phase2Retry, "phase2", phase2Display);
             }
         }
 
@@ -1644,14 +1653,20 @@
         let requestInFlight = false;
 
         // stepKind：這一輪要顯示哪組等待步驟（phase1 / phase2 / chat）
-        async function sendMessage(text, stepKind) {
+        // displayText：氣泡裡顯示的文字（選填）。runWizardFlow 會在 text 裡
+        // 夾帶「請依序執行 xxx 工具、回覆控制在 N 字以內」這類給模型看的
+        // 技術指令，一般人不會這樣說話，因此氣泡改顯示自然語言版本
+        // （單純自述 / 或不顯示這類系統指令），實際仍把完整 text 送給後端。
+        async function sendMessage(text, stepKind, displayText) {
             if (requestInFlight) return null;
             requestInFlight = true;
             // 送出前一定關掉麥克風：避免等待回覆時還在錄音、聆聽動畫還在跑
             stopListening();
             setVoiceStatus("");
             lastUserMessage = text;
-            appendMessage("user", text);
+            lastDisplayMessage = displayText != null ? displayText : text;
+            lastStepKind = stepKind || "chat";
+            appendMessage("user", lastDisplayMessage);
             setState("waiting");
             startWaitingSteps(stepKind || "chat");
 
@@ -1717,7 +1732,7 @@
                 setState("chat");
                 return;
             }
-            sendMessage(lastUserMessage);
+            sendMessage(lastUserMessage, lastStepKind, lastDisplayMessage);
         }
 
         // ============================================================
