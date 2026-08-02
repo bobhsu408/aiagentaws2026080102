@@ -259,6 +259,70 @@
         }
 
         /* ------------------------------------------------------------
+           檢核表（get_checklist）：通用文件 + 各方案專用文件，兩欄分區。
+           附掛在規劃圖畫面下方，一次呈現整份「應備文件清單」。
+           ------------------------------------------------------------ */
+        .checklist-container {
+            margin-top: 1.2rem;
+            border-top: 2px solid #ffffff;
+            padding-top: 1rem;
+            animation: roadmapFadeIn 0.4s ease both;
+        }
+
+        .checklist-title {
+            font-size: 1.15rem;
+            font-weight: bold;
+            margin-bottom: 0.6rem;
+        }
+
+        .checklist-section {
+            margin-bottom: 0.9rem;
+        }
+
+        .checklist-section-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 0.35rem;
+        }
+
+        .checklist-doc {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            padding: 0.3rem 0.6rem;
+            border-left: 2px solid #ffffff;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+        }
+
+        .checklist-doc-name { font-weight: bold; }
+        .checklist-doc-how {
+            font-size: 0.8rem;
+            opacity: 0.75;
+        }
+
+        .checklist-resource-group {
+            border: 1px solid #ffffff;
+            padding: 0.7rem 0.9rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .checklist-resource-name {
+            font-size: 0.95rem;
+            font-weight: bold;
+            margin-bottom: 0.4rem;
+        }
+
+        .checklist-tips {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            border-top: 1px dashed #ffffff;
+            padding-top: 0.6rem;
+            margin-top: 0.6rem;
+        }
+        .checklist-tips div { margin-bottom: 0.25rem; }
+
+        /* ------------------------------------------------------------
            Agent 回覆的 Markdown 排版
            Agent 會用 ## 標題、**粗體**、清單、--- 分隔線，
            這裡壓縮預設邊界，讓對話氣泡不會因為 h2/p/ul 的
@@ -1062,15 +1126,103 @@
             return container;
         }
 
-        // 最近一次收到的 roadmap，供「點擊瀏覽規劃圖」開啟專屬畫面使用。
+        // 最近一次收到的 roadmap / checklist，供「點擊瀏覽規劃圖」開啟
+        // 專屬畫面使用（檢核表附掛在規劃圖畫面下方，兩者同一輪一起出現）。
         let latestRoadmap = null;
+        let latestChecklist = null;
+
+        // ============================================================
+        // 檢核表元件（get_checklist）：通用文件 + 各方案專用文件
+        // ============================================================
+        function renderChecklistDoc(doc) {
+            const line = document.createElement("div");
+            line.className = "checklist-doc";
+
+            const name = document.createElement("span");
+            name.className = "checklist-doc-name";
+            name.textContent = "☐ " + doc.document;
+            line.appendChild(name);
+
+            if (doc.how_to_get) {
+                const how = document.createElement("span");
+                how.className = "checklist-doc-how";
+                how.textContent = "（" + doc.how_to_get + "）";
+                line.appendChild(how);
+            }
+            return line;
+        }
+
+        function buildChecklistElement(checklist) {
+            const container = document.createElement("div");
+            container.className = "checklist-container";
+
+            const title = document.createElement("div");
+            title.className = "checklist-title";
+            title.textContent = "📋 應備文件清單";
+            container.appendChild(title);
+
+            const commonDocs = checklist.common_documents || [];
+            if (commonDocs.length) {
+                const section = document.createElement("div");
+                section.className = "checklist-section";
+                const label = document.createElement("div");
+                label.className = "checklist-section-label";
+                label.textContent = "通用文件（多個方案共用，先備妥可一次辦理）";
+                section.appendChild(label);
+                commonDocs.forEach((doc) => section.appendChild(renderChecklistDoc(doc)));
+                container.appendChild(section);
+            }
+
+            const perResource = checklist.per_resource || [];
+            if (perResource.length) {
+                const section = document.createElement("div");
+                section.className = "checklist-section";
+                const label = document.createElement("div");
+                label.className = "checklist-section-label";
+                label.textContent = "各方案專用文件";
+                section.appendChild(label);
+                perResource.forEach((res) => {
+                    const group = document.createElement("div");
+                    group.className = "checklist-resource-group";
+                    const name = document.createElement("div");
+                    name.className = "checklist-resource-name";
+                    name.textContent = res.resource_name || res.resource_id;
+                    group.appendChild(name);
+                    const specific = res.specific_documents || [];
+                    if (specific.length) {
+                        specific.forEach((doc) => group.appendChild(renderChecklistDoc(doc)));
+                    } else {
+                        const none = document.createElement("div");
+                        none.className = "checklist-doc-how";
+                        none.textContent = "（無額外專用文件，備妥通用文件即可）";
+                        group.appendChild(none);
+                    }
+                    section.appendChild(group);
+                });
+                container.appendChild(section);
+            }
+
+            if (checklist.tips && checklist.tips.length) {
+                const tips = document.createElement("div");
+                tips.className = "checklist-tips";
+                checklist.tips.forEach((text) => {
+                    const p = document.createElement("div");
+                    p.textContent = "💡 " + text;
+                    tips.appendChild(p);
+                });
+                container.appendChild(tips);
+            }
+
+            return container;
+        }
 
         // 收到 roadmap 時不直接把時間軸塞進對話串，而是先出一張醒目的通知卡，
         // 由使用者點擊後切換到專屬的規劃圖畫面（demo 流程：自述 → 問答 →
         // 「已生成規劃圖，請點擊瀏覽」→ 全畫面時間軸）。
         // 這樣做的好處：對話串不會被大圖擠壓，且時間軸有完整寬度可呈現。
-        function appendRoadmapNotice(roadmap) {
+        function appendRoadmapNotice(roadmap, checklist) {
             latestRoadmap = roadmap;
+            if (checklist) latestChecklist = checklist;
             const messages = document.getElementById("messages");
             const card = document.createElement("div");
             card.className = "roadmap-notice";
@@ -1083,29 +1235,37 @@
             const meta = document.createElement("div");
             meta.className = "roadmap-notice-meta";
             const nodeCount = (roadmap.timeline || []).length;
-            meta.textContent =
+            let metaText =
                 "共 " + (roadmap.total_months || 6) + " 個月、" + nodeCount + " 個階段" +
                 ((roadmap.decision_points || []).length
                     ? "，含 " + roadmap.decision_points.length + " 個關鍵決策點"
                     : "");
+            if (latestChecklist) {
+                metaText += "，並附應備文件清單";
+            }
+            meta.textContent = metaText;
             card.appendChild(meta);
 
             const btn = document.createElement("button");
             btn.type = "button";
             btn.className = "roadmap-notice-btn";
             btn.textContent = "點擊瀏覽規劃圖";
-            btn.addEventListener("click", () => openRoadmapScreen(roadmap));
+            btn.addEventListener("click", () => openRoadmapScreen(roadmap, latestChecklist));
             card.appendChild(btn);
 
             messages.appendChild(card);
             messages.scrollTop = messages.scrollHeight;
         }
 
-        // 切換到專屬規劃圖畫面（全寬呈現橫式時間軸）
-        function openRoadmapScreen(roadmap) {
+        // 切換到專屬規劃圖畫面（全寬呈現橫式時間軸 + 應備文件清單）
+        function openRoadmapScreen(roadmap, checklist) {
             const container = document.getElementById("roadmap-view");
             container.innerHTML = "";
             container.appendChild(buildRoadmapElement(roadmap || latestRoadmap));
+            const cl = checklist || latestChecklist;
+            if (cl) {
+                container.appendChild(buildChecklistElement(cl));
+            }
             setState("roadmap");
         }
 
@@ -1588,7 +1748,12 @@
         let voiceHoldHandle = null;     // 保底時間的收尾 timer
         let maxListenHandle = null;     // 最長聆聽時間的 timer
         let pendingVoiceMessage = null; // 等動畫播完才顯示的訊息
-        let voiceServiceBroken = false; // 語音服務確認不可用 → 之後直接走示範模式
+        // 連續失敗次數。達到 VOICE_MAX_FAILURES 之後才停止嘗試連線、
+        // 改為直接播示範動畫；成功一次就歸零。
+        // 不用「一次失敗就永久鎖定」的做法，因為那會害後端修好（或部署完成）
+        // 之後，使用者不重新整理頁面就永遠連不上。
+        let voiceFailureCount = 0;
+        const VOICE_MAX_FAILURES = 2;
         let voiceBaseText = "";         // 開始聆聽前輸入框已有的文字，辨識結果接在後面
         let voiceFinalText = "";        // 本次已定稿（IsPartial=false）的逐字稿
         let voiceSocket = null;
@@ -1624,6 +1789,31 @@
             micBtn.classList.add("demo-only");
             micBtn.title = "語音輸入（此環境僅示範動畫，請改用文字輸入）";
             micBtn.setAttribute("aria-label", "語音輸入（此環境僅示範動畫）");
+        }
+
+        // 語音服務恢復正常時解除示範模式標記
+        function unmarkMicDemoOnly() {
+            const micBtn = document.getElementById("mic-btn");
+            micBtn.classList.remove("demo-only");
+            micBtn.title = "語音輸入（點一下開始，再點一下結束）";
+            micBtn.setAttribute("aria-label", "語音輸入");
+        }
+
+        // 記錄一次語音失敗。detail 會附在畫面訊息後面（例如 HTTP 400），
+        // 讓現場能立刻判斷是「Lambda 沒部署」還是「IAM 缺權限」還是連線問題。
+        function noteVoiceFailure(message, detail) {
+            voiceFailureCount++;
+            if (detail) console.warn("[voice] " + message + " — " + detail);
+            if (voiceFailureCount >= VOICE_MAX_FAILURES) markMicDemoOnly();
+            scheduleListeningFinish(detail ? message + "（" + detail + "）" : message);
+        }
+
+        // 成功拿到辨識結果 → 服務正常，清掉失敗記錄與示範模式標記
+        function noteVoiceSuccess() {
+            if (voiceFailureCount > 0) {
+                voiceFailureCount = 0;
+                unmarkMicDemoOnly();
+            }
         }
 
         // 開始聆聽：不論走真實辨識或示範模式，動畫都由這裡起算。
@@ -1864,11 +2054,12 @@
 
             // 伺服器端例外（簽章過期、參數錯誤等）
             if (decoded.headers[":message-type"] === "exception") {
-                voiceServiceBroken = true;
-                markMicDemoOnly();
-                scheduleListeningFinish("語音服務回報錯誤，已切換示範模式，請改用文字輸入");
                 teardownAudioPipeline();
                 closeVoiceSocket(false);
+                noteVoiceFailure(
+                    "語音服務回報錯誤，請改用文字輸入",
+                    decoded.headers[":exception-type"] || "exception"
+                );
                 return;
             }
 
@@ -1878,6 +2069,9 @@
             } catch (err) {
                 return;
             }
+
+            // 收得到 TranscriptEvent 就代表整條鏈路是通的
+            noteVoiceSuccess();
 
             const results = (body.Transcript && body.Transcript.Results) || [];
             let partial = "";
@@ -1904,8 +2098,12 @@
                 startVoiceDemo("此環境無法取用麥克風（需 HTTPS 網址與較新的瀏覽器），請改用文字輸入");
                 return;
             }
-            if (voiceServiceBroken) {
-                startVoiceDemo("此環境的語音服務連不上，僅示範動畫，請改用文字輸入");
+            if (voiceFailureCount >= VOICE_MAX_FAILURES) {
+                // 連續失敗過多次，改播示範動畫節省時間。但仍保留重試機會：
+                // 失敗計數在此歸零，下次點擊會再試一次真實連線，
+                // 這樣後端修好或部署完成後不必重新整理頁面。
+                voiceFailureCount = 0;
+                startVoiceDemo("語音服務連不上，本次僅示範動畫。可再點一次麥克風重試，或改用文字輸入");
                 return;
             }
 
@@ -1935,15 +2133,21 @@
             let voiceUrl;
             try {
                 const resp = await fetch(API_ENDPOINT + "?action=voice_url", { method: "GET" });
-                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                if (!resp.ok) {
+                    // HTTP 400 通常代表後端還是舊版 Lambda（不認得 action 參數），
+                    // 500 則多半是 Lambda 角色缺 transcribe 權限。把狀態碼帶到
+                    // 畫面上，現場才能立刻分辨。
+                    throw new Error("HTTP " + resp.status);
+                }
                 const data = await resp.json();
-                if (!data.url) throw new Error("no url in response");
+                if (!data.url) throw new Error("回應缺少 url");
                 voiceUrl = data.url;
             } catch (err) {
                 teardownAudioPipeline();
-                voiceServiceBroken = true;
-                markMicDemoOnly();
-                scheduleListeningFinish("無法取得語音服務授權，已切換示範模式，請改用文字輸入");
+                noteVoiceFailure(
+                    "無法取得語音服務授權，請改用文字輸入",
+                    (err && err.message) || "未知錯誤"
+                );
                 return;
             }
 
@@ -1976,9 +2180,7 @@
 
             voiceSocket.addEventListener("error", () => {
                 teardownAudioPipeline();
-                voiceServiceBroken = true;
-                markMicDemoOnly();
-                scheduleListeningFinish("語音服務連線失敗，已切換示範模式，請改用文字輸入");
+                noteVoiceFailure("語音服務連線失敗，請改用文字輸入", "WebSocket error");
             });
 
             voiceSocket.addEventListener("close", () => {
