@@ -179,7 +179,11 @@
     <div id="home-screen" class="screen">
         <h1 class="boot-item">職涯導航家</h1>
         <p class="boot-item">一站式政府補助 &amp; 轉職行動計畫 AI 顧問</p>
-        <button id="start-chat-btn" class="boot-item" type="button">開始對話</button>
+        <div class="boot-item" style="display: flex; gap: 0.6rem;">
+            <button id="start-chat-btn" type="button">開始對話</button>
+            <!-- 社群經驗分享（Demo 畫面，純前端無 API）：見 frontend/community.html -->
+            <button id="community-btn" type="button">社群經驗分享</button>
+        </div>
     </div>
 
     <div id="chat-screen" class="screen">
@@ -374,6 +378,10 @@
         // ============================================================
         document.getElementById("start-chat-btn").addEventListener("click", () => {
             setState("chat");
+        });
+
+        document.getElementById("community-btn").addEventListener("click", () => {
+            window.location.href = "community.html";
         });
 
         document.getElementById("send-btn").addEventListener("click", () => {
