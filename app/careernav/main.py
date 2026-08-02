@@ -114,12 +114,13 @@ def _extract_prompt(payload: dict):
     return payload.get("prompt", "")
 
 
-# 需要把「原始回傳 JSON」額外轉發給前端的工具（目前只有時間軸需要）。
+# 需要把「原始回傳 JSON」額外轉發給前端的工具（時間軸與文件清單皆需要
+# 結構化資料才能在前端畫出對應 UI，不能只靠模型文字轉述）。
 # Strands 的 SSE 事件流只包含工具「輸入參數」的 delta，不包含工具「執行結果」，
 # 因此在這裡攔截 ToolResultMessageEvent，把指定工具的完整回傳包成自訂事件
 # `careernav_tool_result` 額外 yield 出去，讓 Lambda 能拿到 100% 準確的原始
 # JSON（不需要靠文字轉述或正則表達式從模型回覆裡碎片化拼湊）。
-_FORWARD_TOOL_RESULTS = {"generate_roadmap"}
+_FORWARD_TOOL_RESULTS = {"generate_roadmap", "get_checklist"}
 
 
 @app.entrypoint

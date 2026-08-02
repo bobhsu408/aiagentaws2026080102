@@ -12,8 +12,9 @@ Amazon Bedrock AgentCore Runtime 的 invoke_agent_runtime API，
     data: {"event": {"messageStart"|"messageStop"|"contentBlockStart"|"contentBlockStop": ...}}
         → 結構性事件，忽略
     data: {"careernav_tool_result": {"name": "generate_roadmap", "data": {...}}}
-        → app/careernav/main.py 額外攔截 generate_roadmap 工具的原始回傳，
-          直接轉發原始 JSON，不需要從文字回覆裡碎片化拼湊
+    data: {"careernav_tool_result": {"name": "get_checklist", "data": {...}}}
+        → app/careernav/main.py 額外攔截 generate_roadmap / get_checklist 工具的
+          原始回傳，直接轉發原始 JSON，不需要從文字回覆裡碎片化拼湊
 
 環境變數：
     AGENT_RUNTIME_ARN: AgentCore Runtime ARN
@@ -128,9 +129,9 @@ def handler(event: dict, context) -> dict:
             "session_id": session_id,
         })
 
-    reply_text, roadmap = _parse_sse_stream(raw_stream)
+    reply_text, roadmap, checklist = _parse_sse_stream(raw_stream)
 
-    if not reply_text and roadmap is None:
+    if not reply_text and roadmap is None and checklist is None:
         # 串流解析不出任何內容，視為異常但不讓前端卡住等待動畫。
         logger.error("Empty reply parsed from AgentCore stream, raw length=%d", len(raw_stream))
         return _response(502, {
@@ -142,6 +143,7 @@ def handler(event: dict, context) -> dict:
         "reply": reply_text,
         "session_id": session_id,
         "roadmap": roadmap,
+        "checklist": checklist,
     })
 
 
@@ -199,17 +201,18 @@ def _normalize_session_id(session_id) -> str:
     return session_id[:256]
 
 
-def _parse_sse_stream(raw: bytes) -> tuple[str, dict | None]:
-    """解析 AgentCore SSE 事件流，組出文字回覆與 roadmap 結構化資料。
+def _parse_sse_stream(raw: bytes) -> tuple[str, dict | None, dict | None]:
+    """解析 AgentCore SSE 事件流，組出文字回覆、roadmap 與 checklist 結構化資料。
 
     Args:
         raw: invoke_agent_runtime 回應串流讀出的原始 bytes
 
     Returns:
-        (reply_text, roadmap)：roadmap 若這輪沒呼叫 generate_roadmap 則為 None
+        (reply_text, roadmap, checklist)：這輪沒呼叫對應工具時為 None
     """
     text_parts: list[str] = []
     roadmap: dict | None = None
+    checklist: dict | None = None
 
     for line in raw.decode("utf-8", errors="replace").splitlines():
         line = line.strip()
@@ -225,13 +228,18 @@ def _parse_sse_stream(raw: bytes) -> tuple[str, dict | None]:
             logger.warning("Skipping malformed SSE line: %s", payload_str[:200])
             continue
 
-        # 自訂事件：generate_roadmap 的原始回傳（main.py 額外轉發，見模組 docstring）。
+        # 自訂事件：generate_roadmap / get_checklist 的原始回傳
+        # （main.py 額外轉發，見模組 docstring）。
         tool_result = obj.get("careernav_tool_result")
-        if isinstance(tool_result, dict) and tool_result.get("name") == "generate_roadmap":
+        if isinstance(tool_result, dict):
+            tool_name = tool_result.get("name")
             data = tool_result.get("data")
-            if isinstance(data, dict):
+            if tool_name == "generate_roadmap" and isinstance(data, dict):
                 roadmap = data
-            continue
+                continue
+            if tool_name == "get_checklist" and isinstance(data, dict):
+                checklist = data
+                continue
 
         # 一般模型串流事件：只取文字 delta，忽略工具輸入參數 delta 與結構性事件。
         inner_event = obj.get("event")
@@ -242,7 +250,7 @@ def _parse_sse_stream(raw: bytes) -> tuple[str, dict | None]:
         if isinstance(text, str):
             text_parts.append(text)
 
-    return "".join(text_parts), roadmap
+    return "".join(text_parts), roadmap, checklist
 
 
 def _cors_headers() -> dict:

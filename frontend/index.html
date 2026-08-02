@@ -1689,8 +1689,12 @@
                 const bubble = appendMessage("agent", "");
                 await revealBlocks(bubble, data.reply || "（沒有收到回覆內容）");
                 // 規格：若這輪有 roadmap 資料，文字顯示完後才淡入時間軸卡片。
+                // checklist 通常與 roadmap 同一輪出現（見 phase2 指令），
+                // 一併附掛在規劃圖畫面下方，不單獨開一張通知卡。
                 if (data.roadmap) {
-                    appendRoadmapNotice(data.roadmap);
+                    appendRoadmapNotice(data.roadmap, data.checklist);
+                } else if (data.checklist) {
+                    latestChecklist = data.checklist;
                 }
                 return data;
             } catch (err) {
