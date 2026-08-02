@@ -1,0 +1,12 @@
+{
+  "year": 2026,
+  "monthly_min_wage": 29500,
+  "hourly_min_wage": 196,
+  "min_wage_effective_date": "2026-01-01",
+  "min_wage_source": "勞動部 114 年 10 月公告，115 年（2026 年）基本工資調整為月薪 29,500 元、時薪 196 元",
+  "min_wage_source_url": "https://www.mol.gov.tw/",
+  "postal_2yr_rate_note": "就業保險失業者創業協助辦法第 11 條之貸款利率＝中華郵政二年期定期儲金機動利率＋年息 0.575%，該機動利率每日牌告會變動，calculate_benefit 不寫死數字，應提示使用者查當日牌告利率",
+  "last_updated": "2026-08-01",
+  "source": "全國法規資料庫 API（law.moj.gov.tw）+ 勞動部基本工資公告",
+  "last_verified": "2026-08-01"
+}

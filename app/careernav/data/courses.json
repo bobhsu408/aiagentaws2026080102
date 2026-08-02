@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "layer": 2,
+    "description": "第 2 層行政計畫類課程樣本資料，供 generate_roadmap 參考。即時開課清單（課名、梯次、報名截止）由第 3 層 Exa MCP 於 runtime 即時搜尋補充；本檔僅提供穩定的計畫層級資訊。",
+    "last_verified": "2026-08-01",
+    "notes": "資料為手動整理之計畫層級樣本，實際梯次與補助額度以各分署當年度公告為準。"
+  },
+  "courses": [
+    {
+      "id": "preemployment_training_free",
+      "name": "失業者職前訓練（政府補助）",
+      "provider": "勞動部勞動力發展署各分署及委外訓練單位",
+      "category": "職前訓練",
+      "delivery": "全日制",
+      "target_groups": ["中高齡", "一般", "身心障礙", "長期失業", "婦女"],
+      "target_age": { "min": 15, "max": null },
+      "cost": {
+        "type": "subsidized",
+        "detail": "特定對象（含中高齡、身心障礙、長期失業等）訓練費全額補助；一般身分補助 80%",
+        "self_pay_note": "報名時多需先繳保證金，全勤結訓後退還"
+      },
+      "duration_note": "多為 1～6 個月全日制課程",
+      "linked_resource_id": "training_living_allowance",
+      "keywords": ["照顧服務員", "堆高機操作", "門市服務", "電腦文書", "數位行銷基礎", "餐飲烘焙"],
+      "source_url": "https://www.taiwanjobs.gov.tw/",
+      "last_verified": "2026-08-01",
+      "notes": "全日制職前訓練期間可同時請領職業訓練生活津貼（training_living_allowance）。適合情境 A 中高齡失業者建立第二技能，是本專案 roadmap 中的核心轉銜工具。"
+    },
+    {
+      "id": "industry_talent_investment_program",
+      "name": "產業人才投資方案（3 年 7 萬課程補助）",
+      "provider": "勞動部勞動力發展署（委託公民營訓練單位開課）",
+      "category": "在職／待業進修",
+      "delivery": "非全日制（多為夜間或假日）",
+      "target_groups": ["中高齡", "一般", "婦女"],
+      "target_age": { "min": 15, "max": null },
+      "cost": {
+        "type": "subsidized",
+        "detail": "一般勞工補助 80% 訓練費；特定對象（含中高齡 45 歲以上）補助 100%，3 年內最高補助 7 萬元",
+        "self_pay_note": "須先自費全額報名，結訓後依補助比例核退"
+      },
+      "duration_note": "單門課程數十小時，可累積報名多門",
+      "linked_resource_id": null,
+      "keywords": ["AI 應用", "資料分析", "電商經營", "行動支付", "多媒體設計", "外語"],
+      "source_url": "https://tims.etraining.gov.tw/",
+      "last_verified": "2026-08-01",
+      "notes": "非全日制、不影響求職，適合已就業或邊找工作邊進修者。與職前訓練不同：此為在職進修補助，不搭配職訓生活津貼。"
+    },
+    {
+      "id": "industry_elite_pioneer_youth",
+      "name": "產業新尖兵試辦計畫",
+      "provider": "勞動部勞動力發展署",
+      "category": "青年重點產業訓練",
+      "delivery": "全日制",
+      "target_groups": ["青年"],
+      "target_age": { "min": 15, "max": 29 },
+      "cost": {
+        "type": "subsidized",
+        "detail": "政府補助最高 10 萬元訓練費，投入新興重點產業（如半導體、AI、綠能、資安）訓練",
+        "self_pay_note": "青年自付額比例依課程而定"
+      },
+      "duration_note": "依課程，多為 2～6 個月",
+      "linked_resource_id": null,
+      "keywords": ["半導體", "人工智慧", "綠能", "資訊安全", "智慧製造"],
+      "source_url": "https://elite.taiwanjobs.gov.tw/",
+      "last_verified": "2026-08-01",
+      "notes": "限 15～29 歲青年，情境 A（58 歲中高齡）不符資格，故 match/roadmap 不應向中高齡使用者推薦此計畫。列於此以供年齡資格區辨，或作為使用者家中青年轉職之參考。"
+    }
+  ]
+}

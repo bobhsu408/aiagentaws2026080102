@@ -1,0 +1,63 @@
+# ============================================
+# 職涯導航家（CareerNav）Git 忽略規則
+# ============================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+.venv/
+.mypy_cache/
+.pytest_cache/
+
+# --- Node / CDK ---
+node_modules/
+cdk.out/
+*.js.map
+*.d.ts
+infra/dist/
+
+# --- Environment & Secrets ---
+.env
+.env.local
+.env.*.local
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Output (scraper results, not source) ---
+output/
+
+# --- AWS ---
+.aws-sam/
+samconfig.toml
+
+# --- Kiro（保留 steering 與 hooks，忽略暫存）---
+.kiro/settings/
+.kiro/cache/
+
+# --- AgentCore CLI 本機狀態 / 生成產物 ---
+agentcore/.cli/
+agentcore/cdk/dist/
+
+# --- 臨時檔案 ---
+*.log
+*.tmp
+*.pem
+*.key
+credentials*
+

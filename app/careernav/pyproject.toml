@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "careernav"
+version = "0.1.0"
+description = "職涯導航家 — AgentCore Runtime Agent"
+requires-python = ">=3.10"
+dependencies = [
+    "bedrock-agentcore >= 1.9.1",
+    "botocore[crt] >= 1.35.0",
+    "strands-agents >= 1.15.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280">
+    <title>職涯導航家 — CareerNav</title>
+    <style>
+        /* ============================================================
+           復古視覺樣式：黑底白字、標楷體、雙層像素邊框按鈕
+           規格見 docs/IMPLEMENTATION_PLAN_20250731.md Task 7 第四節。
+           僅做筆電桌面尺寸（1280px 基準），不寫 mobile media query。
+           ============================================================ */
+        * { box-sizing: border-box; }
+
+        body {
+            background: #000000;
+            color: #ffffff;
+            font-family: "標楷體", "DFKai-SB", "BiauKai", serif;
+            width: 1280px;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        h1 { font-size: 2.2rem; letter-spacing: 0.05em; }
+
+        /* ------------------------------------------------------------
+           開場動畫：首頁區塊依序從上到下淡入 + 輕微上移，間隔 0.12 秒。
+           .boot-item 預設 opacity:1（立即可見）；只有 #home-screen 帶
+           .play-intro 時才從 0 動畫進場——用來實現「僅第一次載入時跑一次，
+           重新開始按鈕不重播」（由 JS 的 enterHomeScreen() 判斷 sessionStorage）。
+           ------------------------------------------------------------ */
+        .boot-item { opacity: 1; }
+
+        #home-screen.play-intro .boot-item {
+            opacity: 0;
+            animation: bootFadeIn 0.4s ease forwards;
+        }
+        #home-screen.play-intro .boot-item:nth-child(1) { animation-delay: 0s; }
+        #home-screen.play-intro .boot-item:nth-child(2) { animation-delay: 0.12s; }
+        #home-screen.play-intro .boot-item:nth-child(3) { animation-delay: 0.24s; }
+
+        @keyframes bootFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ------------------------------------------------------------
+           復古像素邊框按鈕：外框 2px 實線 + 內縮 3px 再一層 1px 線。
+           按下時整體位移 2px、移除內層框線製造按壓感；hover 時背景反白。
+           ------------------------------------------------------------ */
+        button {
+            position: relative;
+            background: #000000;
+            color: #ffffff;
+            border: 2px solid #ffffff;
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 0.6em 1.4em;
+            cursor: pointer;
+        }
+
+        button::after {
+            content: "";
+            position: absolute;
+            top: 3px; left: 3px; right: 3px; bottom: 3px;
+            border: 1px solid #ffffff;
+            pointer-events: none;
+        }
+
+        button:hover {
+            background: #ffffff;
+            color: #000000;
+        }
+        button:hover::after { border-color: #000000; }
+
+        button:active {
+            transform: translate(2px, 2px);
+        }
+        button:active::after { display: none; }
+
+        /* ------------------------------------------------------------
+           對話畫面
+           ------------------------------------------------------------ */
+        #messages {
+            border: 2px solid #ffffff;
+            padding: 1rem;
+            min-height: 320px;
+            margin-bottom: 1rem;
+            overflow-y: auto;
+        }
+
+        .msg { margin: 0.6rem 0; display: flex; }
+        .msg.user { justify-content: flex-end; }
+        .msg.agent { justify-content: flex-start; }
+
+        /* 用框線粗細/位置區分使用者與 Agent，不用顏色：
+           使用者訊息右側粗框在右邊，Agent 訊息左側粗框在左邊。 */
+        .msg .bubble {
+            display: inline-block;
+            max-width: 70%;
+            padding: 0.6em 1em;
+            border: 1px solid #ffffff;
+            white-space: pre-wrap;
+        }
+        .msg.user .bubble { border-right-width: 4px; }
+        .msg.agent .bubble { border-left-width: 4px; }
+
+        /* ------------------------------------------------------------
+           等待中跑馬燈：「▪▪▪」三方塊依序亮暗循環
+           ------------------------------------------------------------ */
+        #waiting-indicator { margin-bottom: 1rem; }
+        .marquee-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #ffffff;
+            margin-right: 6px;
+            animation: marqueePulse 1.2s ease-in-out infinite;
+        }
+        .marquee-dot:nth-child(1) { animation-delay: 0s; }
+        .marquee-dot:nth-child(2) { animation-delay: 0.2s; }
+        .marquee-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes marqueePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.15; }
+        }
+        .waiting-label { margin-left: 0.4em; }
+
+        /* ------------------------------------------------------------
+           錯誤畫面
+           ------------------------------------------------------------ */
+        #error-screen {
+            border: 2px solid #ffffff;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        #error-screen::before {
+            content: "⚠ ";
+        }
+
+        /* ------------------------------------------------------------
+           時間軸卡片佔位（Task 7 步驟 7 會換成完整橫式時間軸元件）
+           ------------------------------------------------------------ */
+        .roadmap-card {
+            border: 1px dashed #ffffff;
+            padding: 0.6em 1em;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        /* ------------------------------------------------------------
+           輸入區
+           ------------------------------------------------------------ */
+        #input-bar { display: flex; gap: 0.6rem; }
+        #message-input {
+            flex: 1;
+            background: #000000;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 0.6em 1em;
+        }
+        #message-input::placeholder { color: #888888; }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         狀態機畫面：一次只顯示一個 .screen.active
+         home-screen -> chat-screen
+         chat-screen 內再由 JS 切換 waiting / error 狀態
+         ============================================================ -->
+
+    <div id="home-screen" class="screen">
+        <h1 class="boot-item">職涯導航家</h1>
+        <p class="boot-item">一站式政府補助 &amp; 轉職行動計畫 AI 顧問</p>
+        <button id="start-chat-btn" class="boot-item" type="button">開始對話</button>
+    </div>
+
+    <div id="chat-screen" class="screen">
+        <div id="messages"></div>
+
+        <div id="waiting-indicator" style="display: none;">
+            <span class="marquee-dot"></span><span class="marquee-dot"></span><span class="marquee-dot"></span>
+            <span class="waiting-label">等待中</span>
+        </div>
+
+        <div id="error-screen" style="display: none;">
+            <span id="error-message"></span>
+            <div style="margin-top: 0.8rem; display: flex; gap: 0.6rem;">
+                <button id="retry-btn" type="button">重新發送</button>
+                <button id="reset-btn" type="button">重新開始</button>
+            </div>
+        </div>
+
+        <div id="input-bar">
+            <input id="message-input" type="text" placeholder="輸入訊息..." autocomplete="off">
+            <button id="send-btn" type="button">送出</button>
+            <button id="reset-btn-2" type="button">重新開始</button>
+        </div>
+    </div>
+
+    <script>
+        "use strict";
+
+        // ============================================================
+        // 設定
+        // ============================================================
+        // 部署後填入 Lambda Function URL（見 infra/lib/stack.ts 的
+        // ProxyLambdaUrl output，或 docs/reports/TASK_7_REPORT.md）。
+        const API_ENDPOINT = "PLACEHOLDER_LAMBDA_FUNCTION_URL";
+        const WAIT_TIMEOUT_MS = 60000; // 第五節規格：等待超過 60 秒視為逾時
+        const BOOT_FLAG_KEY = "cn_booted"; // sessionStorage：開場動畫只播一次
+        const TYPE_INTERVAL_MS = 25; // 第四節規格：逐字打字機效果，每字 20~30ms
+
+        // ============================================================
+        // 狀態機
+        // ============================================================
+        // States: "home" | "chat" | "waiting" | "error"
+        // chat / waiting / error 共用 #chat-screen 容器，用內部子元素
+        // 的 display 切換，不算獨立 screen（跟第五節狀態機圖對應）。
+        let currentState = "home";
+        let lastUserMessage = ""; // 供「重新發送」使用
+        let sessionId = null;
+        let waitTimeoutHandle = null;
+
+        function setState(state) {
+            currentState = state;
+            document.querySelectorAll(".screen").forEach((el) => el.classList.remove("active"));
+
+            if (state === "home") {
+                document.getElementById("home-screen").classList.add("active");
+            } else if (state === "chat" || state === "waiting" || state === "error") {
+                document.getElementById("chat-screen").classList.add("active");
+                document.getElementById("waiting-indicator").style.display = state === "waiting" ? "block" : "none";
+                document.getElementById("error-screen").style.display = state === "error" ? "block" : "none";
+                document.getElementById("input-bar").style.display = state === "chat" ? "flex" : "none";
+            }
+        }
+
+        // 進入首頁：只有「網頁第一次載入」才播開場逐行淡入動畫（sessionStorage
+        // 記 flag）；resetConversation() 呼叫的「重新開始」一律不重播。
+        function enterHomeScreen() {
+            setState("home");
+            const homeScreen = document.getElementById("home-screen");
+            if (!sessionStorage.getItem(BOOT_FLAG_KEY)) {
+                homeScreen.classList.add("play-intro");
+                sessionStorage.setItem(BOOT_FLAG_KEY, "1");
+            } else {
+                homeScreen.classList.remove("play-intro");
+            }
+        }
+
+        // ============================================================
+        // Session 管理
+        // ============================================================
+        function getOrCreateSessionId() {
+            if (sessionId) return sessionId;
+            // AgentCore runtimeSessionId 最短 33 字元（Lambda 端也有補齊保護，
+            // 這裡直接產生足夠長度的 id）。
+            sessionId = "web-" + crypto.randomUUID() + "-" + crypto.randomUUID();
+            return sessionId;
+        }
+
+        function resetConversation() {
+            sessionId = null;
+            lastUserMessage = "";
+            document.getElementById("messages").innerHTML = "";
+            document.getElementById("message-input").value = "";
+            // 明確移除 play-intro：避免 display:none -> block 切換時
+            // CSS 動畫重播（.play-intro 只應在網頁「第一次」載入時存在）。
+            document.getElementById("home-screen").classList.remove("play-intro");
+            setState("home");
+        }
+
+        // ============================================================
+        // 對話訊息渲染（純文字版，Task 7 步驟 6 會疊逐字打字機效果）
+        // ============================================================
+        function appendMessage(role, text) {
+            const messages = document.getElementById("messages");
+            const wrapper = document.createElement("div");
+            wrapper.className = "msg " + role;
+            const bubble = document.createElement("div");
+            bubble.className = "bubble";
+            bubble.textContent = text;
+            wrapper.appendChild(bubble);
+            messages.appendChild(wrapper);
+            messages.scrollTop = messages.scrollHeight;
+            return bubble;
+        }
+
+        function appendRoadmapPlaceholder(roadmap) {
+            // Task 7 步驟 7 會換成橫式時間軸渲染；先用純文字確認資料有正確送達。
+            const messages = document.getElementById("messages");
+            const card = document.createElement("div");
+            card.className = "roadmap-card";
+            card.textContent =
+                "[roadmap 資料已收到，共 " + roadmap.total_months + " 個月，" +
+                roadmap.timeline.length + " 個時間節點— 時間軸元件將在步驟 7 實作]";
+            messages.appendChild(card);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // ============================================================
+        // API 呼叫
+        // ============================================================
+        async function sendMessage(text) {
+            lastUserMessage = text;
+            appendMessage("user", text);
+            setState("waiting");
+
+            waitTimeoutHandle = setTimeout(() => {
+                showError("等待超過 60 秒，請重新發送");
+            }, WAIT_TIMEOUT_MS);
+
+            try {
+                const resp = await fetch(API_ENDPOINT, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: text,
+                        session_id: getOrCreateSessionId(),
+                    }),
+                });
+
+                clearTimeout(waitTimeoutHandle);
+
+                if (!resp.ok) {
+                    let detail = "";
+                    try {
+                        const errBody = await resp.json();
+                        detail = errBody.error || "";
+                    } catch (e) {
+                        // 回應不是 JSON，忽略細節，仍以 HTTP 狀態碼提示錯誤
+                    }
+                    showError("發生錯誤（" + resp.status + "）" + (detail ? "：" + detail : ""));
+                    return;
+                }
+
+                const data = await resp.json();
+                if (data.session_id) sessionId = data.session_id;
+
+                appendMessage("agent", data.reply || "（沒有收到回覆內容）");
+                if (data.roadmap) {
+                    appendRoadmapPlaceholder(data.roadmap);
+                }
+                setState("chat");
+            } catch (err) {
+                clearTimeout(waitTimeoutHandle);
+                showError("無法連上伺服器，請檢查網路連線後重新發送");
+            }
+        }
+
+        function showError(message) {
+            document.getElementById("error-message").textContent = message;
+            setState("error");
+        }
+
+        function retrySend() {
+            if (!lastUserMessage) {
+                setState("chat");
+                return;
+            }
+            sendMessage(lastUserMessage);
+        }
+
+        // ============================================================
+        // 事件綁定
+        // ============================================================
+        document.getElementById("start-chat-btn").addEventListener("click", () => {
+            setState("chat");
+        });
+
+        document.getElementById("send-btn").addEventListener("click", () => {
+            const input = document.getElementById("message-input");
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = "";
+            sendMessage(text);
+        });
+
+        document.getElementById("message-input").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                document.getElementById("send-btn").click();
+            }
+        });
+
+        document.getElementById("retry-btn").addEventListener("click", retrySend);
+        document.getElementById("reset-btn").addEventListener("click", resetConversation);
+        document.getElementById("reset-btn-2").addEventListener("click", resetConversation);
+
+        // ============================================================
+        // 開場
+        // ============================================================
+        enterHomeScreen();
+    </script>
+</body>
+</html>

@@ -1,6 +1,12 @@
 # 職涯導航家 — 待辦事項清單（按優先序）
 
-> 最後更新：2026-07-29
+> **2026-08-01 執行提示（已更新）**：目前唯一正式執行順序以 `docs/IMPLEMENTATION_PLAN_20250731.md` 為準。Task 1、Task 2、**Task 3 已完成**（`docs/reports/TASK_3_REPORT.md`，commit `81886fb`）；Task 4 的核心內容已隨 Task 3 一併完成（缺獨立報告，見 `docs/HANDOFF.md` 第一節）。AgentCore Runtime 已額外先行部署並通過 invoke，但那是舊骨架版本，**尚未包含 Task 3 的新程式碼**，也不代表 Task 6 完成。新 session 下一步從 **Task 5（MCP Client）** 開始，或先補 Task 4 報告。完成每個 Task 後建立 `docs/reports/TASK_N_REPORT.md` 並 commit。
+>
+> **本節以下內容為 Task 3 之前的舊版待辦，部分已被實際執行取代**（例如 T4「改寫 career_tools.py」已完成，只是路徑從 `app/career_navigator/` 改為 `app/careernav/`）。詳細現況請以 `docs/HANDOFF.md` 為準，此檔案僅供歷史參考。
+>
+> **Task 2 範圍調整**：改用 MVP 情境反推法，聚焦「情境 A：58歲工廠作業員因自動化被資遣」，`resources.json` 目前僅 6 筆（失業給付、職業訓練生活津貼、提早就業獎助、異地就業交通/搬遷/租屋補助）。以下 T2、T3、T7 等提及「15~22 筆」「resources_v2.json」的內容已被 Task 2 實際執行取代，詳見 `docs/reports/TASK_2_REPORT.md`。情境 B（雇主僱用中高齡）、情境 C（高齡者+代理人操作）尚未建資料，可視時間補充。
+>
+> 最後更新：2026-08-01
 > 每項含預估工時、前置依賴、驗收標準
 
 ---
@@ -168,7 +174,7 @@
 |------|------|
 | **預估工時** | 1 小時 |
 | **前置依賴** | 無 |
-| **描述** | `mcp_client/client.py` 加 connection timeout、搜尋失敗時 graceful degradation |
+| **描述** | ~~`mcp_client/client.py` 加 connection timeout、搜尋失敗時 graceful degradation~~ — 已於 Task 5 完成（`app/careernav/exa_mcp/client.py`），見 `docs/reports/TASK_5_REPORT.md` |
 
 ---
 
