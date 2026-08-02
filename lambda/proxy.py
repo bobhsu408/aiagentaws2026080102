@@ -41,24 +41,41 @@ _MIN_SESSION_ID_LEN = 33  # AgentCore runtimeSessionId 最短長度限制
 def handler(event: dict, context) -> dict:
     """Lambda handler — 接收前端訊息、轉發給 AgentCore Runtime、回傳結果"""
 
+    method = event.get("requestContext", {}).get("http", {}).get("method", "")
+
     # CORS preflight
-    if event.get("requestContext", {}).get("http", {}).get("method") == "OPTIONS":
+    if method == "OPTIONS":
         return {
             "statusCode": 200,
             "headers": _cors_headers(),
             "body": "",
         }
 
-    try:
-        body = json.loads(event.get("body", "{}"))
-    except json.JSONDecodeError:
-        return _response(400, {"error": "Invalid JSON body"})
-
-    user_message = body.get("message", "")
-    session_id = _normalize_session_id(body.get("session_id"))
+    # 支援兩種帶參數方式：
+    #   GET  ?q=訊息&session_id=...  ← 前端實際使用的路徑
+    #   POST {"message": ..., "session_id": ...}
+    #
+    # 之所以以 GET 為主：本專案的公開入口是 CloudFront + Origin Access
+    # Control（OAC）簽名呼叫 Lambda Function URL（AuthType=AWS_IAM），
+    # 因為比賽沙盒帳號的 guardrail 會封鎖匿名（AuthType=NONE）呼叫。
+    # 而 OAC 對 PUT/POST 需要「呼叫端自行計算 body 的 SHA256 並帶
+    # x-amz-content-sha256 header」（Lambda 不接受 unsigned payload）；
+    # 改用 GET 就沒有 body，CloudFront 可自行完成整個簽名，瀏覽器端
+    # 不需做任何簽名或雜湊運算。詳見 docs/reports/TASK_7_REPORT.md。
+    if method == "GET":
+        params = event.get("queryStringParameters") or {}
+        user_message = params.get("q", "")
+        session_id = _normalize_session_id(params.get("session_id"))
+    else:
+        try:
+            body = json.loads(event.get("body", "{}"))
+        except json.JSONDecodeError:
+            return _response(400, {"error": "Invalid JSON body"})
+        user_message = body.get("message", "")
+        session_id = _normalize_session_id(body.get("session_id"))
 
     if not user_message:
-        return _response(400, {"error": "message is required"})
+        return _response(400, {"error": "message is required (GET: ?q=..., POST: {\"message\": ...})"})
 
     try:
         agent_runtime_arn = os.environ["AGENT_RUNTIME_ARN"]
