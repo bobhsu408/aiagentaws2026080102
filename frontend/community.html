@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280">
+    <title>社群經驗分享 — 職涯導航家</title>
+    <style>
+        /* ============================================================
+           社群經驗分享畫面（Demo，純前端、無 API 呼叫）
+           需求來源：session/社群.md 第三節之 3「社群經驗分享與分潤機制」
+             - 透明化的職場資訊（面試經驗／薪資待遇／工作實況）
+             - 等級與認證制度（貢獻度 → 獎勵金／回饋）
+             - 留存策略（社群互動與分潤）
+           視覺規格沿用 frontend/index.html：黑底白字、標楷體、
+           雙層像素邊框按鈕、1280px 筆電桌面基準、不寫 mobile media query。
+           中高齡友善補強：字級放大切換 + 語音朗讀（Web Speech API）。
+           ============================================================ */
+        * { box-sizing: border-box; }
+
+        html { font-size: 16px; }
+        /* 中高齡友善：字級放大切換（整頁以 rem 為基準，改 root 即整體放大） */
+        html.large { font-size: 20px; }
+
+        body {
+            background: #000000;
+            color: #ffffff;
+            font-family: "標楷體", "DFKai-SB", "BiauKai", serif;
+            width: 1280px;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.7;
+        }
+
+        h1 { font-size: 2.2rem; letter-spacing: 0.05em; margin: 0; }
+        h2 { font-size: 1.3rem; letter-spacing: 0.04em; margin: 0 0 0.6rem; }
+        h3 { font-size: 1.05rem; margin: 0 0 0.4rem; }
+
+        a { color: #ffffff; }
+
+        /* ------------------------------------------------------------
+           復古像素邊框按鈕（與 index.html 同規格）
+           ------------------------------------------------------------ */
+        button {
+            position: relative;
+            background: #000000;
+            color: #ffffff;
+            border: 2px solid #ffffff;
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 0.5em 1.2em;
+            cursor: pointer;
+        }
+
+        button::after {
+            content: "";
+            position: absolute;
+            top: 3px; left: 3px; right: 3px; bottom: 3px;
+            border: 1px solid #ffffff;
+            pointer-events: none;
+        }
+
+        button:hover { background: #ffffff; color: #000000; }
+        button:hover::after { border-color: #000000; }
+        button:active { transform: translate(2px, 2px); }
+        button:active::after { display: none; }
+
+        /* 鍵盤操作可見焦點（index.html 未定義，這裡補上以符合無障礙需求） */
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible,
+        a:focus-visible {
+            outline: 3px solid #ffffff;
+            outline-offset: 3px;
+        }
+
+        /* 小尺寸次要按鈕：用於貼文互動列 */
+        button.slim {
+            font-size: 0.9rem;
+            padding: 0.3em 0.8em;
+            border-width: 1px;
+        }
+        button.slim::after { display: none; }
+
+        /* 已按下「有幫助」的狀態：反白表示已表態，不用顏色區分 */
+        button.slim[aria-pressed="true"] {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        /* ------------------------------------------------------------
+           頁首列
+           ------------------------------------------------------------ */
+        #page-header {
+            border: 2px solid #ffffff;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        #page-header .subtitle { font-size: 0.95rem; margin: 0.2rem 0 0; }
+        #header-actions { display: flex; gap: 0.6rem; flex-shrink: 0; }
+
+        /* ------------------------------------------------------------
+           AI 社群洞察：把散落的經驗貼文交給 Agent 摘要
+           （對應命題的生成式 AI 應用，非單純論壇）
+           ------------------------------------------------------------ */
+        #ai-insight {
+            border: 2px solid #ffffff;
+            border-left-width: 6px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1.2rem;
+        }
+        #ai-insight ul { margin: 0.4rem 0 0; padding-left: 1.4rem; }
+        #ai-insight li { margin: 0.3rem 0; }
+        .insight-note { font-size: 0.85rem; margin-top: 0.7rem; }
+
+        /* ------------------------------------------------------------
+           兩欄版面：左為貼文流、右為貢獻度／分潤側欄
+           ------------------------------------------------------------ */
+        #layout { display: flex; gap: 1.2rem; align-items: flex-start; }
+        #feed-column { width: 830px; flex-shrink: 0; }
+        #side-column { flex: 1; }
+
+        .panel {
+            border: 2px solid #ffffff;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1.2rem;
+        }
+
+        /* ------------------------------------------------------------
+           分類篩選
+           ------------------------------------------------------------ */
+        #filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .filter-btn[aria-pressed="true"] {
+            background: #ffffff;
+            color: #000000;
+        }
+        .filter-btn[aria-pressed="true"]::after { border-color: #000000; }
+
+        /* ------------------------------------------------------------
+           發文表單（預設收合，降低畫面壓迫感）
+           ------------------------------------------------------------ */
+        #composer[hidden] { display: none; }
+        .field { margin-bottom: 0.8rem; }
+        .field label { display: block; font-size: 0.95rem; margin-bottom: 0.25rem; }
+        .field input[type="text"],
+        .field input[type="number"],
+        .field select,
+        .field textarea {
+            width: 100%;
+            background: #000000;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 0.5em 0.8em;
+        }
+        .field textarea { min-height: 6rem; resize: vertical; }
+        .field input::placeholder,
+        .field textarea::placeholder { color: #888888; }
+        .field-row { display: flex; gap: 0.8rem; }
+        .field-row > .field { flex: 1; }
+        .field-hint { font-size: 0.8rem; margin-top: 0.2rem; }
+        .checkbox-field { display: flex; align-items: center; gap: 0.5rem; }
+        .checkbox-field input { width: auto; }
+        #composer-actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
+
+        /* ------------------------------------------------------------
+           貼文卡片
+           ------------------------------------------------------------ */
+        .post {
+            border: 1px solid #ffffff;
+            border-left-width: 4px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1rem;
+        }
+        /* 自己發表的貼文：右側也加粗，與 index.html 用框線粗細區分角色的做法一致 */
+        .post.mine { border-right-width: 4px; }
+
+        .post-meta {
+            font-size: 0.85rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        .post-title { font-size: 1.15rem; margin: 0 0 0.5rem; }
+        .post-body { white-space: pre-wrap; margin: 0 0 0.7rem; }
+
+        /* 徽章：等級、認證、AI 引用次數 */
+        .badge {
+            display: inline-block;
+            border: 1px solid #ffffff;
+            padding: 0 0.5em;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+        .badge.verified { border-width: 2px; }
+
+        /* 薪資待遇區塊：結構化欄位呈現，不是一句字串 */
+        .salary-box {
+            border: 1px dashed #ffffff;
+            padding: 0.6rem 0.9rem;
+            margin-bottom: 0.7rem;
+            font-size: 0.95rem;
+        }
+        .salary-box dl { margin: 0; display: grid; grid-template-columns: 6.5em 1fr; row-gap: 0.25rem; }
+        .salary-box dt { }
+        .salary-box dd { margin: 0; }
+
+        .post-tags { font-size: 0.85rem; margin-bottom: 0.6rem; }
+        .post-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+        .post-actions .spacer { flex: 1; }
+        .cited-note { font-size: 0.8rem; }
+
+        /* ------------------------------------------------------------
+           貢獻度進度條（純方塊，無漸層）
+           ------------------------------------------------------------ */
+        .progress-track {
+            border: 1px solid #ffffff;
+            height: 1.1rem;
+            margin: 0.4rem 0 0.3rem;
+        }
+        .progress-fill {
+            background: #ffffff;
+            height: 100%;
+            width: 0;
+            transition: width 0.4s ease;
+        }
+        .stat-line { display: flex; justify-content: space-between; font-size: 0.95rem; }
+        .stat-line + .stat-line { margin-top: 0.25rem; }
+        .payout-amount { font-size: 1.4rem; }
+
+        .rule-list { margin: 0.3rem 0 0; padding-left: 1.3rem; font-size: 0.9rem; }
+        .rule-list li { margin: 0.25rem 0; }
+
+        /* 排行榜 */
+        .rank-row {
+            display: flex;
+            gap: 0.6rem;
+            font-size: 0.95rem;
+            padding: 0.3rem 0;
+            border-bottom: 1px dotted #666666;
+        }
+        .rank-row:last-child { border-bottom: none; }
+        .rank-no { width: 2.2em; flex-shrink: 0; }
+        .rank-name { flex: 1; }
+
+        /* ------------------------------------------------------------
+           獎勵提示（送出經驗後出現，3 秒後淡出）
+           ------------------------------------------------------------ */
+        #toast {
+            position: fixed;
+            right: 2rem;
+            bottom: 2rem;
+            background: #000000;
+            border: 2px solid #ffffff;
+            padding: 0.9rem 1.2rem;
+            max-width: 22rem;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        #toast.show { opacity: 1; transform: translateY(0); }
+        #toast::before { content: "★ "; }
+
+        /* 螢幕閱讀器專用文字 */
+        .sr-only {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .empty-state {
+            border: 1px dashed #ffffff;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        #demo-footer {
+            border-top: 1px solid #666666;
+            margin-top: 1rem;
+            padding-top: 0.8rem;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header id="page-header">
+        <div>
+            <h1>社群經驗分享</h1>
+            <p class="subtitle">真實面試經驗 ・ 透明薪資待遇 ・ 工作實況　｜　分享有回饋，經驗會被 AI 顧問引用</p>
+        </div>
+        <div id="header-actions">
+            <button id="back-btn" type="button">回到對話</button>
+            <button id="font-btn" type="button" aria-pressed="false">放大字級</button>
+        </div>
+    </header>
+
+    <!-- AI 社群洞察：Agent 讀完社群貼文後的摘要，示意「社群 → AI」的資料回流 -->
+    <section id="ai-insight" aria-label="AI 社群洞察摘要">
+        <h2>AI 從 128 則經驗分享中整理出的重點</h2>
+        <ul>
+            <li>中高齡轉「照顧服務員」的分享最多（41 則），面試普遍重視耐心與體力，較少追問年齡。</li>
+            <li>回報薪資的 63 則貼文中，月薪中位數為 NT$ 33,000；有照者平均高出 NT$ 2,800。</li>
+            <li>最常被提到的卡關點是「職業訓練生活津貼與失業給付不能同時領」，共 17 則貼文踩到。</li>
+        </ul>
+        <p class="insight-note">※ 摘要由社群貼文即時生成，資料會隨新貼文更新。點各則貼文可看原文與發文者驗證狀態。</p>
+    </section>
+
+    <div id="layout">
+
+        <!-- ============================ 左欄：貼文流 ============================ -->
+        <main id="feed-column">
+
+            <div id="filter-bar" role="group" aria-label="貼文分類篩選">
+                <button class="filter-btn" type="button" data-category="all" aria-pressed="true">全部</button>
+                <button class="filter-btn" type="button" data-category="interview" aria-pressed="false">面試經驗</button>
+                <button class="filter-btn" type="button" data-category="salary" aria-pressed="false">薪資待遇</button>
+                <button class="filter-btn" type="button" data-category="worklife" aria-pressed="false">工作實況</button>
+                <button class="filter-btn" type="button" data-category="subsidy" aria-pressed="false">補助申請心得</button>
+                <span style="flex:1"></span>
+                <button id="compose-toggle" type="button">＋ 分享我的經驗</button>
+            </div>
+
+            <!-- 發文表單：預設收合 -->
+            <form id="composer" class="panel" hidden>
+                <h2>分享我的經驗</h2>
+
+                <div class="field">
+                    <label for="post-category">分類</label>
+                    <select id="post-category">
+                        <option value="interview">面試經驗</option>
+                        <option value="salary">薪資待遇</option>
+                        <option value="worklife">工作實況</option>
+                        <option value="subsidy">補助申請心得</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="post-title">標題</label>
+                    <input id="post-title" type="text" maxlength="60" placeholder="例：長照機構面試沒問年齡，問的是這三件事">
+                </div>
+
+                <div class="field">
+                    <label for="post-body">內容</label>
+                    <textarea id="post-body" placeholder="說說你實際遇到的情況，對後面的人很有幫助。也可以按下方「語音輸入」用說話代替打字。"></textarea>
+                    <p class="field-hint">不確定怎麼寫？可以只回答：面試問了什麼、實際做什麼、薪水多少、值不值得去。</p>
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="post-job">職稱</label>
+                        <input id="post-job" type="text" placeholder="例：照顧服務員">
+                    </div>
+                    <div class="field">
+                        <label for="post-salary-min">月薪下限（元）</label>
+                        <input id="post-salary-min" type="number" min="0" step="1000" placeholder="32000">
+                    </div>
+                    <div class="field">
+                        <label for="post-salary-max">月薪上限（元）</label>
+                        <input id="post-salary-max" type="number" min="0" step="1000" placeholder="36000">
+                    </div>
+                </div>
+                <p class="field-hint">薪資欄位可留空。填了會納入 AI 的薪資統計，也算加倍貢獻點。</p>
+
+                <div class="field checkbox-field">
+                    <input id="post-anonymous" type="checkbox" checked>
+                    <label for="post-anonymous" style="margin:0">匿名發表（只顯示暱稱與年齡級距，不顯示公司全名）</label>
+                </div>
+
+                <div id="composer-actions">
+                    <button id="submit-post" type="submit">送出並領取回饋</button>
+                    <button id="voice-input" type="button">語音輸入</button>
+                    <button id="cancel-post" type="button">取消</button>
+                </div>
+            </form>
+
+            <div id="post-list" aria-live="polite"></div>
+
+        </main>
+
+        <!-- ============================ 右欄：貢獻度與分潤 ============================ -->
+        <aside id="side-column">
+
+            <section class="panel" aria-label="我的貢獻與回饋">
+                <h2>我的貢獻</h2>
+                <p style="margin:0 0 0.2rem">
+                    <span class="badge" id="level-badge">LV.3</span>
+                    <strong id="level-name">職場前輩</strong>
+                </p>
+                <div class="progress-track" role="img" aria-label="升級進度" id="progress-track">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <p style="font-size:0.85rem;margin:0 0 0.9rem" id="progress-text"></p>
+
+                <div class="stat-line"><span>累積貢獻點</span><strong id="stat-points">340</strong></div>
+                <div class="stat-line"><span>經驗被 AI 引用</span><strong id="stat-citations">37 次</strong></div>
+                <div class="stat-line"><span>已通過驗證的貼文</span><strong id="stat-verified">3 則</strong></div>
+
+                <p style="margin:1rem 0 0">本月回饋金</p>
+                <p style="margin:0"><span class="payout-amount" id="stat-monthly">NT$ 480</span></p>
+                <p style="font-size:0.85rem;margin:0.2rem 0 0">累積已領 <span id="stat-total">NT$ 2,150</span>　（可折抵課程費或提領）</p>
+            </section>
+
+            <section class="panel" aria-label="分潤機制說明">
+                <h2>回饋怎麼算</h2>
+                <ul class="rule-list">
+                    <li>發表一則經驗：<strong>+40 貢獻點</strong>，含薪資結構再 <strong>+20</strong>。</li>
+                    <li>被其他人標記「有幫助」：每次 <strong>+2 點</strong>。</li>
+                    <li>被 AI 顧問引用回答別人的問題：每次 <strong>+5 點</strong>、回饋金 <strong>NT$ 3</strong>。</li>
+                    <li>上傳到職證明通過驗證：該則貼文回饋 <strong>加成 1.5 倍</strong>，並取得「已驗證」徽章。</li>
+                    <li>回饋金每月結算，可折抵補助課程自付額或直接提領。</li>
+                </ul>
+                <p class="insight-note">目的不是賺錢，是讓「願意講真話的人」拿得到好處，資訊才會持續透明。</p>
+            </section>
+
+            <section class="panel" aria-label="等級制度">
+                <h2>等級與認證</h2>
+                <ul class="rule-list">
+                    <li>LV.1 新手分享者　0 點</li>
+                    <li>LV.2 經驗夥伴　120 點</li>
+                    <li>LV.3 職場前輩　300 點</li>
+                    <li>LV.4 資深導師　500 點</li>
+                    <li>LV.5 認證職涯前輩　900 點（可開設一對一經驗諮詢）</li>
+                </ul>
+            </section>
+
+            <section class="panel" aria-label="熱心分享榜">
+                <h2>本月熱心分享榜</h2>
+                <div id="rank-list"></div>
+            </section>
+
+            <section class="panel" aria-label="社群守則">
+                <h2>社群守則</h2>
+                <ul class="rule-list">
+                    <li>不指名批評個人，可以說公司與職務。</li>
+                    <li>薪資請填實際到手範圍，避免誤導後來的人。</li>
+                    <li>經驗分享不等於就業保證，資格與補助以官方公告為準。</li>
+                </ul>
+            </section>
+
+        </aside>
+    </div>
+
+    <p id="demo-footer">
+        Demo 畫面：本頁資料為示意內容，未連接後端，所有互動僅在瀏覽器本機生效（重新整理即還原）。
+    </p>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+        "use strict";
+
+        // ============================================================
+        // 設定與常數
+        // ============================================================
+        const CATEGORY_LABELS = {
+            interview: "面試經驗",
+            salary: "薪資待遇",
+            worklife: "工作實況",
+            subsidy: "補助申請心得",
+        };
+
+        // 貢獻度換算規則（與右欄「回饋怎麼算」面板文案一致）
+        const POINTS_PER_POST = 40;
+        const POINTS_SALARY_BONUS = 20;
+        const POINTS_PER_HELPFUL = 2;
+        const PAYOUT_PER_POST = 30;      // 元
+        const PAYOUT_PER_HELPFUL = 1;    // 元
+        const TOAST_DURATION_MS = 3600;
+
+        // 等級門檻：由低到高，points 為進入該等級所需累積貢獻點
+        const LEVELS = [
+            { level: 1, name: "新手分享者", points: 0 },
+            { level: 2, name: "經驗夥伴", points: 120 },
+            { level: 3, name: "職場前輩", points: 300 },
+            { level: 4, name: "資深導師", points: 500 },
+            { level: 5, name: "認證職涯前輩", points: 900 },
+        ];
+
+        // ============================================================
+        // 示意資料（Demo 用；正式版由社群後端提供）
+        // 薪資一律用結構化欄位（min / max / period），不存成一句字串，
+        // 才能讓 AI 做統計與比較。
+        // ============================================================
+        let posts = [
+            {
+                id: "p1",
+                author: { nickname: "阿明大哥", ageRange: "55～59 歲", level: 4, levelName: "資深導師", verified: true },
+                category: "interview",
+                title: "長照機構面試沒問我年齡，問的是這三件事",
+                body: "做了 30 年沖床，去年廠收掉。上完照顧服務員職前訓練去面試三家機構，三家都沒問我幾歲。\n\n實際被問的是：\n1. 有沒有照顧過家裡長輩、扶抱會不會\n2. 能不能配合大夜或假日輪班\n3. 遇到住民情緒失控會怎麼處理\n\n第三題我照著訓練課教的講「先確認安全、降低刺激、通報護理師」，主管當場說可以下週就來。年齡真的不是重點，願意配合班表跟穩定度才是。",
+                job: "照顧服務員",
+                company: "新北市某私立長照機構",
+                salary: { min: 32000, max: 36000, period: "月", note: "含全勤 2,000，大夜另加給" },
+                shift: "三班輪班，月休 8 天",
+                area: "新北市板橋區",
+                onboard: "2026-05 到職",
+                relatedResource: "職業訓練生活津貼",
+                tags: ["中高齡轉職", "照顧服務員", "職前訓練"],
+                helpful: 96,
+                comments: 23,
+                citations: 14,
+                createdAt: "3 天前",
+                helpfulClicked: false,
+                mine: false,
+            },
+            {
+                id: "p2",
+                author: { nickname: "珍姐", ageRange: "50～54 歲", level: 3, levelName: "職場前輩", verified: true },
+                category: "salary",
+                title: "會計轉超商門市，薪水結構完整攤給你看",
+                body: "以前做會計月薪 4 萬 2，中間公司結束營業。想找輕鬆點的先過渡，轉去做超商門市。\n\n把薪水拆開講清楚，不要只看徵才寫的「月薪 3 萬起」：\n本薪 28,500 ＋ 全勤 1,500 ＋ 夜班津貼（大夜每小時多 25）＋ 賣咖啡的個人獎金約 800～1,500。\n實際到手最低 30,800、最高做過 34,600。\n\n扣的部分：勞健保自付約 1,200。制服要自己買 600（第二年才發）。\n\n老實說比會計少快 1 萬，但站班時間固定、下班不用帶工作回家。我是把它當找到正職前的緩衝，同時用產業人才投資方案在上晚上的雲端記帳課。",
+                job: "超商門市服務員",
+                company: "連鎖便利商店（中山區店）",
+                salary: { min: 30800, max: 34600, period: "月", note: "實際到手，已扣勞健保自付" },
+                shift: "早班／大夜輪替，週休二日",
+                area: "臺北市中山區",
+                onboard: "2026-03 到職",
+                relatedResource: "產業人才投資方案（3 年 7 萬課程補助）",
+                tags: ["薪資透明", "門市服務", "轉職緩衝"],
+                helpful: 141,
+                comments: 38,
+                citations: 22,
+                createdAt: "6 天前",
+                helpfulClicked: false,
+                mine: false,
+            },
+            {
+                id: "p3",
+                author: { nickname: "老王", ageRange: "55～59 歲", level: 3, levelName: "職場前輩", verified: false },
+                category: "worklife",
+                title: "堆高機證照拿到了，但倉儲工作實際是這樣",
+                body: "先講結論：證照好考，工作沒有想像中輕鬆，但比開貨車穩。\n\n實際一天：早上 8 點對單、上下貨櫃，中間要爬上爬下貼標，不是整天坐在車上。冷鏈倉庫零下 18 度，一次進去最多 20 分鐘要出來。\n\n對中高齡的重點：\n・腰要顧好，我第二個月就去買護腰\n・夏天常溫倉庫很熱，要自己備鹽片\n・現場很多是 40 歲以上，主管不會嫌你年紀大，怕的是動作慢會撞到人\n\n我是先去上職前訓練考證照，訓練期間有領生活津貼撐過那三個月。",
+                job: "倉儲堆高機操作員",
+                company: "桃園某物流倉儲",
+                salary: { min: 34000, max: 38000, period: "月", note: "含加班約 20 小時" },
+                shift: "日班，週休二日，偶爾加班",
+                area: "桃園市大園區",
+                onboard: "2026-04 到職",
+                relatedResource: "職業訓練生活津貼",
+                tags: ["工作實況", "堆高機", "體力評估"],
+                helpful: 78,
+                comments: 19,
+                citations: 9,
+                createdAt: "1 週前",
+                helpfulClicked: false,
+                mine: false,
+            },
+            {
+                id: "p4",
+                author: { nickname: "陳小姐", ageRange: "45～49 歲", level: 4, levelName: "資深導師", verified: true },
+                category: "subsidy",
+                title: "我踩到的坑：失業給付和職訓生活津貼不能同時領",
+                body: "整理一次流程，希望大家不要跟我一樣白跑。\n\n我原本在領失業給付（非自願離職、投保滿一年以上），後來報名全日制職前訓練，以為兩邊都能領。結果不行，同期間只能領一種。\n\n我最後的選擇：改領職業訓練生活津貼。原因是我訓練要上 4 個月，比我剩下的失業給付月數還長，而且訓練期間可以專心上課不用一直回去做求職紀錄。\n\n提醒三件事：\n1. 要先在公立就服機構做求職登記，不要自己先去報名課程\n2. 非自願離職證明書一定要拿到，公司拖著就打 1955\n3. 存摺封面影本要本人名義，我拿家人的被退件一次\n\n實際金額每個人不一樣，我是拿我自己的投保薪資去問承辦人，也用職涯導航家先算過一次比較放心。",
+                job: null,
+                company: null,
+                salary: null,
+                shift: null,
+                area: "臺中市",
+                onboard: null,
+                relatedResource: "失業給付 ／ 職業訓練生活津貼",
+                tags: ["補助申請", "併領限制", "文件清單"],
+                helpful: 213,
+                comments: 54,
+                citations: 41,
+                createdAt: "2 週前",
+                helpfulClicked: false,
+                mine: false,
+            },
+            {
+                id: "p5",
+                author: { nickname: "Ken", ageRange: "45～49 歲", level: 2, levelName: "經驗夥伴", verified: false },
+                category: "interview",
+                title: "49 歲從傳統業務轉電商小編，面試被問的兩題最關鍵",
+                body: "上了三門產業人才投資方案的課（電商經營、社群素材製作），投了 14 家，5 家約面試。\n\n最關鍵的兩題：\n「你會不會用 AI 工具做圖跟寫文案？」→ 我把上課做的 8 張貼文圖跟成效截圖直接開手機給他看，這題直接過。\n「年輕同事管你，你會不會不舒服？」→ 這題是真的會問，不要迴避。我說我做業務被客戶罵 20 年，被交代事情沒問題。\n\n年紀在這行不是不能談，但你要先讓對方看到作品，不然他只會看到年紀。",
+                job: "電商社群小編",
+                company: "臺中某家居用品電商",
+                salary: { min: 36000, max: 40000, period: "月", note: "另有季獎金" },
+                shift: "日班，週休二日",
+                area: "臺中市西屯區",
+                onboard: "2026-06 到職",
+                relatedResource: "產業人才投資方案（3 年 7 萬課程補助）",
+                tags: ["中高齡轉職", "數位轉職", "作品集"],
+                helpful: 88,
+                comments: 27,
+                citations: 11,
+                createdAt: "2 週前",
+                helpfulClicked: false,
+                mine: false,
+            },
+            {
+                id: "p6",
+                author: { nickname: "美惠阿姨", ageRange: "60～64 歲", level: 2, levelName: "經驗夥伴", verified: true },
+                category: "worklife",
+                title: "61 歲重返職場做社區關懷據點助理，一天實際做什麼",
+                body: "很多人以為這年紀只能做清潔，其實據點很缺人。\n\n一天：8:30 量血壓簽到、9:00 帶健口操、10:30 準備共餐、下午做記錄上系統。系統要打字，我一開始很怕，後來用手機語音輸入就順了。\n\n薪水不高，但走路 10 分鐘到、不用輪班、跟人互動多，我做得比想像中久。\n\n給同齡的：不要被「要會電腦」四個字嚇退，實際上就是固定幾個表格，做一週就會了。",
+                job: "社區關懷據點行政助理",
+                company: "某社區發展協會",
+                salary: { min: 28590, max: 30000, period: "月", note: "部分工時可談" },
+                shift: "日班，週休二日",
+                area: "高雄市三民區",
+                onboard: "2026-02 到職",
+                relatedResource: null,
+                tags: ["高齡就業", "工作實況", "數位門檻"],
+                helpful: 156,
+                comments: 41,
+                citations: 18,
+                createdAt: "3 週前",
+                helpfulClicked: false,
+                mine: false,
+            },
+        ];
+
+        // 我的貢獻狀態
+        const me = {
+            nickname: "我",
+            ageRange: "50～54 歲",
+            points: 340,
+            citations: 37,
+            verifiedPosts: 3,
+            monthlyPayout: 480,
+            totalPayout: 2150,
+        };
+
+        // 熱心分享榜（示意）
+        const ranking = [
+            { nickname: "陳小姐", points: 1240, payout: 1860 },
+            { nickname: "阿明大哥", points: 860, payout: 1290 },
+            { nickname: "珍姐", points: 705, payout: 1050 },
+            { nickname: "美惠阿姨", points: 430, payout: 640 },
+            { nickname: "老王", points: 380, payout: 570 },
+        ];
+
+        let activeCategory = "all";
+        let toastTimer = null;
+
+        // ============================================================
+        // 小工具
+        // ============================================================
+        function formatMoney(amount) {
+            return "NT$ " + Number(amount).toLocaleString("zh-TW");
+        }
+
+        function levelOf(points) {
+            let current = LEVELS[0];
+            for (const entry of LEVELS) {
+                if (points >= entry.points) current = entry;
+            }
+            return current;
+        }
+
+        function nextLevelOf(points) {
+            return LEVELS.find((entry) => entry.points > points) || null;
+        }
+
+        function showToast(text) {
+            const toast = document.getElementById("toast");
+            toast.textContent = text;
+            toast.classList.add("show");
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove("show"), TOAST_DURATION_MS);
+        }
+
+        // ============================================================
+        // 語音朗讀：中高齡使用者看長文容易疲勞，提供聽的選項。
+        // 用瀏覽器內建 Web Speech API，不需後端。
+        // ============================================================
+        function speak(text) {
+            if (!("speechSynthesis" in window)) {
+                showToast("這個瀏覽器不支援語音朗讀，請改用 Chrome 或 Edge。");
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "zh-TW";
+            utterance.rate = 0.95; // 稍慢，聽得清楚
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // ============================================================
+        // 渲染：貼文卡片
+        // ============================================================
+        function buildSalaryBox(post) {
+            // 沒有任何薪資／班別資訊就不畫這個區塊（例如純補助心得貼文）
+            if (!post.salary && !post.shift && !post.job) return null;
+
+            const box = document.createElement("div");
+            box.className = "salary-box";
+            const dl = document.createElement("dl");
+
+            const rows = [];
+            if (post.job) rows.push(["職稱", post.job + (post.company ? "｜" + post.company : "")]);
+            if (post.salary) {
+                const range = post.salary.min === post.salary.max
+                    ? formatMoney(post.salary.min)
+                    : formatMoney(post.salary.min) + " ～ " + formatMoney(post.salary.max);
+                rows.push([post.salary.period + "薪", range + (post.salary.note ? "（" + post.salary.note + "）" : "")]);
+            }
+            if (post.shift) rows.push(["班別", post.shift]);
+            if (post.area) rows.push(["地區", post.area]);
+            if (post.onboard) rows.push(["到職", post.onboard]);
+            if (post.relatedResource) rows.push(["用到的資源", post.relatedResource]);
+
+            for (const [term, detail] of rows) {
+                const dt = document.createElement("dt");
+                dt.textContent = term;
+                const dd = document.createElement("dd");
+                dd.textContent = detail;
+                dl.appendChild(dt);
+                dl.appendChild(dd);
+            }
+
+            box.appendChild(dl);
+            return box;
+        }
+
+        function buildPostCard(post) {
+            const card = document.createElement("article");
+            card.className = "post" + (post.mine ? " mine" : "");
+
+            // --- 作者與分類 ---
+            const meta = document.createElement("div");
+            meta.className = "post-meta";
+
+            const levelBadge = document.createElement("span");
+            levelBadge.className = "badge";
+            levelBadge.textContent = "LV." + post.author.level + " " + post.author.levelName;
+            meta.appendChild(levelBadge);
+
+            const who = document.createElement("span");
+            who.textContent = post.author.nickname + "・" + post.author.ageRange;
+            meta.appendChild(who);
+
+            const cat = document.createElement("span");
+            cat.textContent = "〔" + CATEGORY_LABELS[post.category] + "〕";
+            meta.appendChild(cat);
+
+            if (post.author.verified) {
+                const verified = document.createElement("span");
+                verified.className = "badge verified";
+                verified.textContent = "✔ 已驗證到職證明";
+                meta.appendChild(verified);
+            }
+
+            const time = document.createElement("span");
+            time.textContent = post.createdAt;
+            meta.appendChild(time);
+
+            card.appendChild(meta);
+
+            // --- 標題與內文 ---
+            const title = document.createElement("h3");
+            title.className = "post-title";
+            title.textContent = post.title;
+            card.appendChild(title);
+
+            const salaryBox = buildSalaryBox(post);
+            if (salaryBox) card.appendChild(salaryBox);
+
+            const body = document.createElement("p");
+            body.className = "post-body";
+            body.textContent = post.body;
+            card.appendChild(body);
+
+            if (post.tags && post.tags.length) {
+                const tags = document.createElement("div");
+                tags.className = "post-tags";
+                tags.textContent = "# " + post.tags.join("　# ");
+                card.appendChild(tags);
+            }
+
+            // --- 互動列 ---
+            const actions = document.createElement("div");
+            actions.className = "post-actions";
+
+            const helpfulBtn = document.createElement("button");
+            helpfulBtn.type = "button";
+            helpfulBtn.className = "slim";
+            helpfulBtn.setAttribute("aria-pressed", String(post.helpfulClicked));
+            helpfulBtn.textContent = (post.helpfulClicked ? "✔ 已標記有幫助 " : "有幫助 ") + post.helpful;
+            helpfulBtn.addEventListener("click", () => toggleHelpful(post.id));
+            actions.appendChild(helpfulBtn);
+
+            const commentBtn = document.createElement("button");
+            commentBtn.type = "button";
+            commentBtn.className = "slim";
+            commentBtn.textContent = "留言 " + post.comments;
+            commentBtn.addEventListener("click", () => showToast("Demo 畫面：留言串尚未實作。"));
+            actions.appendChild(commentBtn);
+
+            const readBtn = document.createElement("button");
+            readBtn.type = "button";
+            readBtn.className = "slim";
+            readBtn.textContent = "▶ 朗讀";
+            readBtn.addEventListener("click", () => speak(post.title + "。" + post.body));
+            actions.appendChild(readBtn);
+
+            const askBtn = document.createElement("button");
+            askBtn.type = "button";
+            askBtn.className = "slim";
+            askBtn.textContent = "問 AI 我適不適合";
+            askBtn.addEventListener("click", () => {
+                showToast("Demo 畫面：正式版會把這則經驗帶入對話，直接問 AI 顧問你的條件適不適合。");
+            });
+            actions.appendChild(askBtn);
+
+            const spacer = document.createElement("span");
+            spacer.className = "spacer";
+            actions.appendChild(spacer);
+
+            const cited = document.createElement("span");
+            cited.className = "cited-note";
+            cited.textContent = post.citations > 0
+                ? "AI 顧問已引用這則經驗 " + post.citations + " 次"
+                : "尚未被 AI 引用";
+            actions.appendChild(cited);
+
+            card.appendChild(actions);
+            return card;
+        }
+
+        function renderPosts() {
+            const list = document.getElementById("post-list");
+            list.innerHTML = "";
+
+            const visible = activeCategory === "all"
+                ? posts
+                : posts.filter((post) => post.category === activeCategory);
+
+            if (!visible.length) {
+                const empty = document.createElement("div");
+                empty.className = "empty-state";
+                empty.textContent = "這個分類還沒有人分享，你可以當第一個（也拿得到回饋）。";
+                list.appendChild(empty);
+                return;
+            }
+
+            const count = document.createElement("p");
+            count.style.fontSize = "0.9rem";
+            count.style.margin = "0 0 0.8rem";
+            count.textContent = "共 " + visible.length + " 則經驗"
+                + (activeCategory === "all" ? "" : "（分類：" + CATEGORY_LABELS[activeCategory] + "）");
+            list.appendChild(count);
+
+            for (const post of visible) {
+                list.appendChild(buildPostCard(post));
+            }
+        }
+
+        // ============================================================
+        // 渲染：貢獻度與排行榜
+        // ============================================================
+        function renderContribution() {
+            const current = levelOf(me.points);
+            const next = nextLevelOf(me.points);
+
+            document.getElementById("level-badge").textContent = "LV." + current.level;
+            document.getElementById("level-name").textContent = current.name;
+
+            const track = document.getElementById("progress-track");
+            const fill = document.getElementById("progress-fill");
+            const text = document.getElementById("progress-text");
+
+            if (next) {
+                const span = next.points - current.points;
+                const done = me.points - current.points;
+                const percent = Math.min(100, Math.round((done / span) * 100));
+                fill.style.width = percent + "%";
+                text.textContent = "再 " + (next.points - me.points) + " 點升 LV." + next.level + " " + next.name;
+                track.setAttribute("aria-label", "升級進度 " + percent + "%");
+            } else {
+                fill.style.width = "100%";
+                text.textContent = "已達最高等級，可開設一對一經驗諮詢";
+                track.setAttribute("aria-label", "升級進度 100%");
+            }
+
+            document.getElementById("stat-points").textContent = me.points;
+            document.getElementById("stat-citations").textContent = me.citations + " 次";
+            document.getElementById("stat-verified").textContent = me.verifiedPosts + " 則";
+            document.getElementById("stat-monthly").textContent = formatMoney(me.monthlyPayout);
+            document.getElementById("stat-total").textContent = formatMoney(me.totalPayout);
+        }
+
+        function renderRanking() {
+            const container = document.getElementById("rank-list");
+            container.innerHTML = "";
+            ranking.forEach((entry, index) => {
+                const row = document.createElement("div");
+                row.className = "rank-row";
+
+                const no = document.createElement("span");
+                no.className = "rank-no";
+                no.textContent = (index + 1) + ".";
+                row.appendChild(no);
+
+                const name = document.createElement("span");
+                name.className = "rank-name";
+                name.textContent = entry.nickname;
+                row.appendChild(name);
+
+                const points = document.createElement("span");
+                points.textContent = entry.points + " 點／" + formatMoney(entry.payout);
+                row.appendChild(points);
+
+                container.appendChild(row);
+            });
+        }
+
+        // ============================================================
+        // 互動：標記有幫助
+        // ============================================================
+        function toggleHelpful(postId) {
+            const post = posts.find((item) => item.id === postId);
+            if (!post) return;
+
+            post.helpfulClicked = !post.helpfulClicked;
+            post.helpful += post.helpfulClicked ? 1 : -1;
+
+            // 自己的貼文被標記才算自己的貢獻；標記別人的貼文不加自己的點數。
+            if (post.mine) {
+                const delta = post.helpfulClicked ? 1 : -1;
+                me.points += POINTS_PER_HELPFUL * delta;
+                me.monthlyPayout += PAYOUT_PER_HELPFUL * delta;
+                me.totalPayout += PAYOUT_PER_HELPFUL * delta;
+                renderContribution();
+            }
+
+            renderPosts();
+        }
+
+        // ============================================================
+        // 互動：發表經驗（含貢獻點與回饋金結算）
+        // ============================================================
+        function submitPost(event) {
+            event.preventDefault();
+
+            const title = document.getElementById("post-title").value.trim();
+            const body = document.getElementById("post-body").value.trim();
+            if (!title || !body) {
+                showToast("標題和內容都填一下，才幫得到後面的人。");
+                return;
+            }
+
+            const category = document.getElementById("post-category").value;
+            const job = document.getElementById("post-job").value.trim();
+            const salaryMin = Number(document.getElementById("post-salary-min").value);
+            const salaryMax = Number(document.getElementById("post-salary-max").value);
+            const anonymous = document.getElementById("post-anonymous").checked;
+
+            const hasSalary = salaryMin > 0 && salaryMax >= salaryMin;
+            const beforeLevel = levelOf(me.points).level;
+
+            const gainedPoints = POINTS_PER_POST + (hasSalary ? POINTS_SALARY_BONUS : 0);
+            me.points += gainedPoints;
+            me.monthlyPayout += PAYOUT_PER_POST;
+            me.totalPayout += PAYOUT_PER_POST;
+
+            posts.unshift({
+                id: "mine-" + Date.now(),
+                author: {
+                    nickname: anonymous ? "我（匿名）" : me.nickname,
+                    ageRange: me.ageRange,
+                    level: levelOf(me.points).level,
+                    levelName: levelOf(me.points).name,
+                    verified: false,
+                },
+                category: category,
+                title: title,
+                body: body,
+                job: job || null,
+                company: null,
+                salary: hasSalary ? { min: salaryMin, max: salaryMax, period: "月", note: null } : null,
+                shift: null,
+                area: null,
+                onboard: null,
+                relatedResource: null,
+                tags: ["我的分享"],
+                helpful: 0,
+                comments: 0,
+                citations: 0,
+                createdAt: "剛剛",
+                helpfulClicked: false,
+                mine: true,
+            });
+
+            // 切到該分類讓使用者看到自己的貼文，並收合表單
+            activeCategory = "all";
+            syncFilterButtons();
+            document.getElementById("composer").reset();
+            document.getElementById("composer").hidden = true;
+            document.getElementById("compose-toggle").textContent = "＋ 分享我的經驗";
+
+            renderPosts();
+            renderContribution();
+
+            const afterLevel = levelOf(me.points).level;
+            let message = "感謝分享！＋" + gainedPoints + " 貢獻點、回饋金 ＋" + formatMoney(PAYOUT_PER_POST);
+            if (hasSalary) message += "（含薪資結構加倍）";
+            if (afterLevel > beforeLevel) {
+                message += "　▸ 升級為 LV." + afterLevel + " " + levelOf(me.points).name + "！";
+            }
+            message += "　上傳到職證明可再加成 1.5 倍。";
+            showToast(message);
+
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        // ============================================================
+        // 互動：語音輸入（把說的話填進內容欄）
+        // ============================================================
+        function startVoiceInput() {
+            const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!Recognition) {
+                showToast("這個瀏覽器不支援語音輸入，請改用 Chrome 或 Edge，或直接打字。");
+                return;
+            }
+
+            const recognition = new Recognition();
+            recognition.lang = "zh-TW";
+            recognition.interimResults = false;
+
+            const button = document.getElementById("voice-input");
+            button.textContent = "聽你說…";
+            button.disabled = true;
+
+            recognition.addEventListener("result", (event) => {
+                const transcript = event.results[0][0].transcript;
+                const textarea = document.getElementById("post-body");
+                textarea.value = textarea.value ? textarea.value + "\n" + transcript : transcript;
+            });
+
+            recognition.addEventListener("error", () => {
+                showToast("沒有聽清楚，再試一次或直接打字就好。");
+            });
+
+            recognition.addEventListener("end", () => {
+                button.textContent = "語音輸入";
+                button.disabled = false;
+            });
+
+            recognition.start();
+        }
+
+        // ============================================================
+        // 互動：分類篩選與字級
+        // ============================================================
+        function syncFilterButtons() {
+            document.querySelectorAll(".filter-btn").forEach((button) => {
+                button.setAttribute("aria-pressed", String(button.dataset.category === activeCategory));
+            });
+        }
+
+        function toggleFontSize() {
+            const button = document.getElementById("font-btn");
+            const enlarged = document.documentElement.classList.toggle("large");
+            button.setAttribute("aria-pressed", String(enlarged));
+            button.textContent = enlarged ? "還原字級" : "放大字級";
+        }
+
+        // ============================================================
+        // 事件綁定
+        // ============================================================
+        document.querySelectorAll(".filter-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                activeCategory = button.dataset.category;
+                syncFilterButtons();
+                renderPosts();
+            });
+        });
+
+        document.getElementById("compose-toggle").addEventListener("click", () => {
+            const composer = document.getElementById("composer");
+            composer.hidden = !composer.hidden;
+            document.getElementById("compose-toggle").textContent =
+                composer.hidden ? "＋ 分享我的經驗" : "收起表單";
+            if (!composer.hidden) document.getElementById("post-title").focus();
+        });
+
+        document.getElementById("composer").addEventListener("submit", submitPost);
+        document.getElementById("voice-input").addEventListener("click", startVoiceInput);
+        document.getElementById("cancel-post").addEventListener("click", () => {
+            const composer = document.getElementById("composer");
+            composer.reset();
+            composer.hidden = true;
+            document.getElementById("compose-toggle").textContent = "＋ 分享我的經驗";
+        });
+
+        document.getElementById("font-btn").addEventListener("click", toggleFontSize);
+        document.getElementById("back-btn").addEventListener("click", () => {
+            window.location.href = "index.html";
+        });
+
+        // ============================================================
+        // 開場
+        // ============================================================
+        renderPosts();
+        renderContribution();
+        renderRanking();
+    </script>
+</body>
+</html>

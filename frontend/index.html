@@ -647,6 +647,8 @@
         <div class="boot-item" style="display: flex; gap: 0.8rem; margin-top: 0.4rem;">
             <button id="start-chat-btn" type="button">開始評估</button>
             <button id="demo-preset-btn" type="button">一鍵示範情境</button>
+            <!-- 社群經驗分享（Demo 畫面，純前端無 API）：見 frontend/community.html -->
+            <button id="community-btn" type="button">社群經驗分享</button>
         </div>
     </div>
 
@@ -2272,6 +2274,10 @@
             setState("chat");
             closeWizard();
             runWizardFlow(DEMO_PRESET);
+        });
+
+        document.getElementById("community-btn").addEventListener("click", () => {
+            window.location.href = "community.html";
         });
 
         document.getElementById("roadmap-back-btn").addEventListener("click", () => setState("chat"));
